@@ -20,6 +20,14 @@ Show Hometown 是一个展示家乡信息的 Web 应用程序。该应用允许�
 - 风景名胜展示
 - 响应式设计，支持多端访问
 
+## 技术栈
+
+- **前端框架**: Vue 3 (Composition API)
+- **构建工具**: Vite
+- **语言**: JavaScript
+- **样式**: CSS3/SCSS
+- **组件库**: element-plus
+
 ## 安装步骤
 
 ### 环境要求
@@ -70,6 +78,3 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-请注意，这是一个基于项目名称和通用 Vue 项目结构编写的 README。如果您能提供具体的代码文件和项目详情，我可以为您创建更准确的文档。
