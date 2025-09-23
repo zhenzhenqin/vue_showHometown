@@ -21,26 +21,28 @@ import {
 import { useRouter } from 'vue-router';
 import { onMounted, ref, watch } from 'vue';
 
-const router = useRouter();
-const screenWidth = ref(window.innerWidth);
-const currentPath = ref(router.currentRoute.value.path);
-const isScrolled = ref(false);
+const router = useRouter();  //创建路由实例
+const screenWidth = ref(window.innerWidth); //窗口宽度（用于适配）
+const currentPath = ref(router.currentRoute.value.path); //当前的路径
+const isScrolled = ref(false); //判断页面的滚动，当滚动时，改变导航栏样式
 
 // 监听路由变化
 watch(
   () => router.currentRoute.value.path,
   (newPath) => {
-    currentPath.value = newPath;
+    currentPath.value = newPath; //更改当前路径
+    //不是首页，则无需改变导航栏样式
     if (newPath !== '/index') {
       isScrolled.value = true;
     } else {
       isScrolled.value = window.scrollY > 30;
     }
   },
-  { immediate: true }
+  { immediate: true } //初始化后立即判断
 );
 
 // 监听窗口大小+滚动
+//根据滚动距离判断是否更新isScrolled
 onMounted(() => {
   const handleResize = () => {
     screenWidth.value = window.innerWidth;
@@ -49,11 +51,12 @@ onMounted(() => {
 
   const handleScroll = () => {
     if (currentPath.value === '/index') {
-      isScrolled.value = window.scrollY > 30;
+      isScrolled.value = window.scrollY > 30; //30px改变导航栏样式
     }
   };
   window.addEventListener('scroll', handleScroll);
 
+  //切换页面时移除监听
   return () => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('scroll', handleScroll);
@@ -82,11 +85,12 @@ const handleMenuClick = (path) => {
   router.push(path);
 };
 
-// 衢州介绍内容（特色标签修复）
+// 衢州介绍内容
 const quzhouIntroduction = {
   title: "衢州——南孔圣地，衢州有礼",
   subtitle: "一座兼具历史底蕴与生态之美的城市",
   content: "衢州，地处浙闽赣皖四省边际，是国家历史文化名城，自古为 “四省通衢”，作为 “南孔圣地”，这里有南宗孔氏家庙，与曲阜北宗呼应，被誉为 “东南阙里”，是儒家文化南传的重要枢纽，自然景观奇绝：世界自然遗产江郎山 “三爿石” 雄奇，烂柯山承载围棋文化，钱江源林茂泉清，龙游石窟、廿八都古镇更添神秘，美食独具风味，“三头一掌”、龙游发糕、开化清水鱼等广受喜爱，美食独具风味，“三头一掌”、龙游发糕、开化清水鱼等广受喜爱。",
+  //特色
   features: [
     "国家历史文化名城",
     "中国优秀旅游城市",
@@ -94,6 +98,7 @@ const quzhouIntroduction = {
     "国家园林城市",
     "南孔圣地·衢州有礼"
   ],
+  //亮点
   highlights: [
     { title: "文化名片", desc: "孔氏南宗家庙、水亭门历史文化街区" },
     { title: "自然景观", desc: "江郎山（世界自然遗产）、钱江源国家公园" },
@@ -103,7 +108,9 @@ const quzhouIntroduction = {
 </script>
 
 <template>
+  <!-- Elheader导航栏 + Elmain主要内容  垂直布局 + 浮动导航栏 -->
   <el-container direction="vertical" class="layout-container">
+
     <!-- 全局导航栏 -->
     <el-header class="floating-nav" :class="{ 'scrolled': isScrolled }">
       <div class="nav-outer-container">
@@ -125,7 +132,7 @@ const quzhouIntroduction = {
       'home-content': currentPath === '/index',
       'other-content': currentPath !== '/index'
     }">
-      <!-- 首页专属内容 -->
+      <!-- 首页专属内容 使用一个轮播图轮播图片-->
       <template v-if="currentPath === '/index'">
         <!-- 轮播图 -->
         <div class="carousel-container">
@@ -139,7 +146,7 @@ const quzhouIntroduction = {
           </el-carousel>
         </div>
 
-        <!-- 衢州介绍：修复特色标签被覆盖 -->
+        <!-- 衢州介绍 -->
         <div class="introduction-section">
           <div class="introduction-wrapper">
             <!-- 标题区 -->
@@ -148,7 +155,7 @@ const quzhouIntroduction = {
               <p class="intro-subtitle">{{ quzhouIntroduction.subtitle }}</p>
             </div>
 
-            <!-- 卡片内容区 -->
+            <!-- 卡片内容区 栅格布局 Elrow + Elcol -->
             <ElRow :gutter="20" class="intro-content-row">
               <ElCol :xs="24" :md="16" :lg="18" class="text-col">
                 <ElCard class="intro-text-card">
@@ -171,7 +178,7 @@ const quzhouIntroduction = {
               </ElCol>
             </ElRow>
 
-            <!-- 特色标签区：关键修复——提升层级+确保不溢出 -->
+            <!-- 特色标签区-->
             <div class="features-container" style="position: relative; z-index: 10; overflow: visible;">
               <div class="feature-item" v-for="(feature, index) in quzhouIntroduction.features" :key="index">
                 {{ feature }}
@@ -181,7 +188,11 @@ const quzhouIntroduction = {
         </div>
       </template>
 
-      <!-- 非首页内容 -->
+      <!-- 非首页内容（路由出口）
+       *导航栏
+         -首页
+         -（路由出口）其他页面
+      -->
       <template v-else>
         <router-view />
       </template>

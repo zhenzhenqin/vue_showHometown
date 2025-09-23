@@ -61,7 +61,6 @@
               </span>
             </div>
           </div>
-          <!-- 已删除“查看详情”按钮 -->
         </div>
       </div>
 
@@ -173,7 +172,7 @@ onMounted(() => {
     url('https://picsum.photos/id/1036/1920/500') center/cover no-repeat;
   color: var(--white);
   padding: 60px 20px;
-  text-align: center;
+  text-align: center; 
   position: relative;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }

@@ -1,0 +1,16 @@
+NEW_FILE_CODE
+# 自动处理文本文件
+* text=auto
+
+# 指定特定文件类型的换行符
+*.js text eol=lf
+*.vue text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.xml text eol=lf
+
+# 特殊处理 Windows 批处理文件
+*.bat text eol=crlf
+*.cmd text eol=crlf
