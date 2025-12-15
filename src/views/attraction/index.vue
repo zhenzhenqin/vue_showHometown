@@ -1,6 +1,5 @@
 <template>
   <div class="attraction-container">
-    <!-- 头部横幅区域 -->
     <div class="attraction-header">
       <div class="header-content">
         <h1>衢州景区</h1>
@@ -9,189 +8,253 @@
       </div>
     </div>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading">
-      <div class="spinner"></div>
-      <p>正在加载景区数据...</p>
-    </div>
+    <div class="main-content">
+      <div v-if="loading" class="state-box">
+        <div class="spinner"></div>
+        <p>正在加载景区数据...</p>
+      </div>
+      <div v-else-if="error" class="state-box">
+        <p class="error-text">{{ error }}</p>
+        <button @click="fetchAttractions" class="retry-btn">重新加载</button>
+      </div>
 
-    <!-- 错误状态 -->
-    <div v-else-if="error" class="error">
-      <div class="error-icon">⚠️</div>
-      <p>{{ error }}</p>
-      <button @click="fetchAttractions" class="retry-btn">重新加载</button>
-    </div>
-
-    <!-- 景区列表 -->
-    <div v-else class="attraction-list">
-      <div v-for="attraction in attractionList" :key="attraction.id" class="attraction-card">
-        <!-- 卡片内容区 -->
-        <div class="attraction-content">
-          <!-- 顶部：景区名称 + 评分 -->
-          <div class="top-bar">
-            <!-- 景区名称：单行省略 + hover气泡 -->
-            <div class="name-wrapper">
-              <h2 class="attraction-name">{{ attraction.name }}</h2>
-              <div class="name-tooltip" :class="{ 'show-tooltip': isTextOverflow(attraction.name, 18) }">
-                {{ attraction.name }}
-              </div>
+      <div v-else class="content-wrapper">
+        <div class="grid-container">
+          <div 
+            v-for="item in paginatedItems" 
+            :key="item.id" 
+            class="grid-item"
+            @click="openModal(item)"
+          >
+            <div class="image-wrapper">
+              <img 
+                :src="item.image" 
+                :alt="item.name" 
+                @error="handleImgError($event)"
+              />
             </div>
-            <!-- 景区评分：突出显示 -->
-            <div class="score-tag">
-              <span class="icon-star">★</span>
-              <span class="score-value">{{ attraction.score }}</span>
-            </div>
-          </div>
-
-          <!-- 中间：景区位置（单行省略） -->
-          <div class="location-wrapper">
-            <span class="icon-location">📍</span>
-            <p class="attraction-location" :title="attraction.location">
-              {{ attraction.location }}
-            </p>
-          </div>
-
-          <!-- 内容区内部分层容器（带纹路效果） -->
-          <div class="content-inner">
-            <!-- 景区描述：多行省略 + hover展开 -->
-            <p class="attraction-desc" :class="{ 'expand-desc': isDescHovered[attraction.id] }"
-              @mouseenter="isDescHovered[attraction.id] = true" @mouseleave="isDescHovered[attraction.id] = false">
-              {{ attraction.description }}
-            </p>
-
-            <!-- 元数据：更新时间 -->
-            <div class="attraction-meta">
-              <span class="meta-item">
-                <span class="icon-time">📅</span> 更新: {{ formatDate(attraction.updateTime) }}
-              </span>
+            <div class="name-bar">
+              <h3>{{ item.name }}</h3>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 空状态处理 -->
-      <div v-if="attractionList.length === 0" class="empty-state">
-        <div class="empty-icon">🏞️</div>
-        <p>暂无景区数据</p>
+        <div class="pagination-bar" v-if="totalPages > 1">
+          <button 
+            :disabled="currentPage === 1" 
+            @click="changePage(currentPage - 1)"
+            class="page-btn"
+          >上一页</button>
+          
+          <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+          
+          <button 
+            :disabled="currentPage === totalPages" 
+            @click="changePage(currentPage + 1)"
+            class="page-btn"
+          >下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <button class="close-btn" @click="closeModal">×</button>
+
+        <button 
+          class="nav-btn prev-btn" 
+          @click="navigateDetail(-1)"
+          :disabled="currentDetailIndex === 0"
+        >❮</button>
+
+        <div class="detail-body" v-if="selectedItem">
+          <div class="detail-image">
+            <img :src="selectedItem.image" :alt="selectedItem.name" @error="handleImgError($event)">
+          </div>
+          <div class="detail-info">
+            <h2>{{ selectedItem.name }}</h2>
+            
+            <div class="detail-meta">
+              <span class="meta-tag score" v-if="selectedItem.score">
+                ★ {{ selectedItem.score }}分
+              </span>
+              <span class="meta-tag location">
+                📍 {{ selectedItem.location }}
+              </span>
+            </div>
+            
+            <div class="update-time">
+              更新于: {{ formatDate(selectedItem.updateTime) }}
+            </div>
+
+            <div class="detail-desc">
+              <p>{{ selectedItem.description }}</p>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          class="nav-btn next-btn" 
+          @click="navigateDetail(1)"
+          :disabled="currentDetailIndex === attractionList.length - 1"
+        >❯</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getAttraction } from '../../api/api'
 
-// 响应式数据
+// 数据状态
 const attractionList = ref([])
 const loading = ref(false)
 const error = ref(null)
-const isDescHovered = ref({})
 
-// 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
+// 分页状态
+const currentPage = ref(1)
+const pageSize = 9 // 每页9个
 
-// 判断文本是否溢出
-const isTextOverflow = (text, maxLen) => {
-  return text.length > maxLen
-}
+// 弹窗状态
+const showModal = ref(false)
+const selectedItem = ref(null)
 
-// 获取景区数据
+// --- 计算属性 ---
+
+// 总页数
+const totalPages = computed(() => {
+  return Math.ceil(attractionList.value.length / pageSize)
+})
+
+// 当前页数据
+const paginatedItems = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  const end = start + pageSize
+  return attractionList.value.slice(start, end)
+})
+
+// 当前选中项索引 (用于弹窗翻页)
+const currentDetailIndex = computed(() => {
+  if (!selectedItem.value) return -1
+  return attractionList.value.findIndex(item => item.id === selectedItem.value.id)
+})
+
+// --- 方法 ---
+
+// 获取数据
 const fetchAttractions = async () => {
   try {
     loading.value = true
     error.value = null
     const response = await getAttraction()
-
+    // 假设接口返回结构统一为 { code: 1, data: [...] }
     if (response.code === 1 && Array.isArray(response.data)) {
       attractionList.value = response.data
-      response.data.forEach(item => {
-        isDescHovered.value[item.id] = false
-      })
     } else {
-      throw new Error('景区数据格式异常')
+      throw new Error(response.msg || '数据加载失败')
     }
   } catch (err) {
-    console.error('获取景区数据失败:', err)
-    error.value = err.message || '数据加载失败，请稍后重试'
-    attractionList.value = []
+    console.error(err)
+    error.value = err.message || '加载失败，请检查网络'
   } finally {
     loading.value = false
   }
 }
 
-// 组件挂载：页面置顶 + 获取数据
-onMounted(() => {
-  window.scrollTo({
-    top: 0,
-    left: 0,
-    behavior: 'instant'
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric'
   })
+}
+
+// 图片错误处理
+const handleImgError = (e) => {
+  // 如果没有默认图，可以只设置背景色
+  e.target.style.backgroundColor = '#eee' 
+  e.target.style.objectFit = 'contain'
+  // e.target.src = require('@/assets/images/default-scenery.png') // 如果有默认图请解开
+}
+
+// --- 交互逻辑 ---
+
+// 翻页
+const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 打开弹窗
+const openModal = (item) => {
+  selectedItem.value = item
+  showModal.value = true
+  document.body.style.overflow = 'hidden' // 禁止背景滚动
+}
+
+// 关闭弹窗
+const closeModal = () => {
+  showModal.value = false
+  selectedItem.value = null
+  document.body.style.overflow = '' // 恢复背景滚动
+}
+
+// 弹窗内切换
+const navigateDetail = (direction) => {
+  const newIndex = currentDetailIndex.value + direction
+  if (newIndex >= 0 && newIndex < attractionList.value.length) {
+    selectedItem.value = attractionList.value[newIndex]
+  }
+}
+
+onMounted(() => {
+  window.scrollTo(0, 0)
   fetchAttractions()
 })
 </script>
 
 <style scoped>
-/* 基础样式变量 */
+/* 基础变量 */
 :root {
   --primary-color: #1a5e38;
-  --primary-light: #2a7d4a;
   --secondary-color: #e8f4ea;
+  --score-color: #ff7d00;
   --text-dark: #333;
   --text-medium: #666;
-  --text-light: #999;
-  --white: #fff;
-  --card-bg: #fff;
-  --content-bg: #fdfdfd;
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
-  --shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.22);
-  --inner-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.05);
-  --border-light: #f0f0f0;
-  --radius: 12px;
-  --transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  --score-color: #ff7d00;
-  /* 新增纹路相关变量 */
-  --texture-pattern: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23f0f0f0' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
+  --bg-color: #f9fbf8;
 }
 
 .attraction-container {
-  min-height: calc(100vh - 144px);
-  background-color: #f9fbf8;
-  padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-color);
+  min-height: 100vh;
+  padding-bottom: 40px;
+  font-family: 'Segoe UI', sans-serif;
 }
 
-/* 头部样式 */
+/* =========================================
+   1. 头部样式 (严格保留原版)
+   ========================================= */
 .attraction-header {
   background: linear-gradient(rgba(26, 94, 56, 0.9), rgba(26, 94, 56, 0.85)),
-    url('https://picsum.photos/id/152/1920/500') center/cover no-repeat;
-  color: var(--white);
+              url('https://picsum.photos/id/152/1920/500') center/cover no-repeat;
+  color: #fff;
   padding: 60px 20px;
   text-align: center;
   position: relative;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
-
 .header-content {
   max-width: 800px;
   margin: 0 auto;
 }
-
 .attraction-header h1 {
   font-size: 2.5rem;
   margin-bottom: 15px;
   text-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
   letter-spacing: 0.5px;
 }
-
 .attraction-header p {
   font-size: 1.2rem;
   opacity: 0.9;
@@ -199,7 +262,6 @@ onMounted(() => {
   line-height: 1.6;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
 .divider {
   width: 80px;
   height: 3px;
@@ -209,19 +271,21 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* 加载/错误状态 */
-.loading,
-.error {
+/* =========================================
+   2. 主体内容样式 (Grid 布局)
+   ========================================= */
+.content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* 状态提示区 */
+.state-box {
   text-align: center;
   padding: 80px 20px;
   color: var(--text-medium);
-  background-color: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  max-width: 600px;
-  margin: 0 auto;
 }
-
 .spinner {
   width: 50px;
   height: 50px;
@@ -230,381 +294,267 @@ onMounted(() => {
   border-radius: 50%;
   animation: spin 1.2s linear infinite;
   margin: 0 auto 25px;
-  box-shadow: 0 0 15px rgba(26, 94, 56, 0.1);
 }
-
 @keyframes spin {
-  0% {
-    transform: rotate(0deg) scale(1);
-  }
-
-  50% {
-    transform: rotate(180deg) scale(1.05);
-  }
-
-  100% {
-    transform: rotate(360deg) scale(1);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
-
-.error-icon {
-  font-size: 40px;
-  margin-bottom: 20px;
-  color: #e74c3c;
-  text-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
-}
-
 .retry-btn {
   background-color: var(--primary-color);
   color: white;
   border: none;
-  padding: 12px 24px;
+  padding: 10px 24px;
   border-radius: 30px;
   cursor: pointer;
   margin-top: 15px;
-  font-size: 1rem;
-  transition: var(--transition);
+}
+
+/* --- Grid 网格布局 --- */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 强制3列 */
+  gap: 35px;
+  margin-bottom: 40px;
+}
+
+/* 卡片样式 */
+.grid-item {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f0f0f0;
+}
+.grid-item:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+}
+
+/* 图片区 */
+.image-wrapper {
+  height: 240px;
+  overflow: hidden;
+  position: relative;
+  background: #f5f5f5;
+}
+.image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s;
+}
+.grid-item:hover img {
+  transform: scale(1.08);
+}
+
+/* 标题区 */
+.name-bar {
+  padding: 20px;
+  text-align: center;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+}
+.name-bar h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- 分页条 --- */
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-top: 30px;
+}
+.page-btn {
+  padding: 8px 20px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #555;
+}
+.page-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--secondary-color);
+}
+.page-btn:disabled {
+  background: #f5f5f5;
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+/* =========================================
+   3. 详情弹窗样式
+   ========================================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.75);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #fff;
+  width: 900px;
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  animation: modalFadeIn 0.3s ease;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+/* 关闭按钮 */
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #999;
+  cursor: pointer;
+  z-index: 10;
+  line-height: 1;
+}
+.close-btn:hover { color: #333; }
+
+/* 左右导航按钮 */
+.nav-btn {
+  background: rgba(255,255,255,0.9);
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.nav-btn:hover:not(:disabled) {
+  background: var(--primary-color);
+  color: #fff;
+  transform: translateY(-50%) scale(1.1);
+}
+.nav-btn:disabled { opacity: 0; pointer-events: none; }
+.prev-btn { left: 20px; }
+.next-btn { right: 20px; }
+
+/* 详情内容布局 */
+.detail-body {
+  display: flex;
+  width: 100%;
+}
+.detail-image {
+  flex: 1.2;
+  background: #eee;
+  min-height: 400px;
+}
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.detail-info {
+  flex: 1;
+  padding: 50px 40px;
+  overflow-y: auto;
+  max-height: 85vh;
+}
+.detail-info h2 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: var(--text-dark);
+  line-height: 1.3;
+}
+
+/* 详情页元数据 (评分/位置) */
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+.meta-tag {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 6px 15px rgba(26, 94, 56, 0.3);
-}
-
-.retry-btn:hover {
-  background-color: var(--primary-light);
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(26, 94, 56, 0.4);
-}
-
-/* 景区列表容器 */
-.attraction-list {
-  display: grid;
-  gap: 40px;
-  padding: 60px 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-}
-
-/* 景区卡片 */
-.attraction-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  transition: var(--transition);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: relative;
-  border: 1px solid var(--border-light);
-  padding: 4px;
-}
-
-.attraction-card:hover {
-  transform: translateY(-12px) scale(1.02);
-  box-shadow: var(--shadow-hover);
-  z-index: 10;
-}
-
-/* 卡片内容区（恢复纹路效果） */
-.attraction-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--content-bg);
-  border-radius: calc(var(--radius) - 4px);
-  border: 1px solid var(--border-light);
-  padding: 25px;
-  box-shadow: var(--inner-shadow);
-  position: relative;
-  /* 恢复背景纹路 */
-  background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 15%),
-    var(--texture-pattern);
-}
-
-/* 顶部：名称 + 评分 横向布局 */
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-/* 景区名称样式 */
-.name-wrapper {
-  position: relative;
-  max-width: 70%;
-}
-
-.attraction-name {
-  font-size: 1.4rem;
-  color: var(--text-dark);
-  line-height: 1.4;
-  transition: var(--transition);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
-  cursor: default;
-}
-
-.attraction-card:hover .attraction-name {
-  color: var(--primary-color);
-  text-shadow: 0 3px 6px rgba(26, 94, 56, 0.15);
-}
-
-/* 名称气泡提示 */
-.name-tooltip {
-  position: absolute;
-  top: -40px;
-  left: 0;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: var(--white);
-  font-size: 0.9rem;
-  padding: 6px 12px;
-  border-radius: 6px;
-  white-space: nowrap;
-  z-index: 20;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.name-tooltip::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  left: 10px;
-  border-width: 6px 6px 0;
-  border-style: solid;
-  border-color: rgba(0, 0, 0, 0.8) transparent transparent;
-}
-
-.name-wrapper:hover .name-tooltip {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* 评分标签 */
-.score-tag {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background-color: var(--score-color);
-  color: var(--white);
-  padding: 4px 10px;
+  padding: 6px 14px;
   border-radius: 20px;
-  font-weight: 500;
-  box-shadow: 0 2px 4px rgba(255, 125, 0, 0.2);
-}
-
-.icon-star {
-  color: var(--white);
-  font-size: 0.9rem;
-}
-
-.score-value {
-  font-size: 1rem;
-}
-
-/* 景区位置 */
-.location-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-medium);
   font-size: 0.95rem;
-  margin-bottom: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
+  font-weight: 500;
 }
-
-.icon-location {
+.meta-tag.score {
+  background-color: #fff7e6;
+  color: var(--score-color);
+  border: 1px solid #ffe4b3;
+}
+.meta-tag.location {
+  background-color: var(--secondary-color);
   color: var(--primary-color);
-  font-size: 1.1rem;
 }
-
-.attraction-location {
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
-}
-
-/* 内容区内部分层容器（带纹路） */
-.content-inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-  background: var(--white);
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  margin-bottom: 0;
-  min-height: 120px;
-  /* 补充轻微纹理 */
-  background-image: var(--texture-pattern);
-  background-size: 100px;
-}
-
-/* 景区描述 */
-.attraction-desc {
-  color: var(--text-medium);
-  line-height: 1.7;
-  margin-bottom: 15px;
-  flex: 1;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 8px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.attraction-desc.expand-desc {
-  -webkit-line-clamp: unset;
-  max-height: 300px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.attraction-desc.expand-desc::-webkit-scrollbar {
-  width: 4px;
-}
-
-.attraction-desc.expand-desc::-webkit-scrollbar-thumb {
-  background-color: var(--text-light);
-  border-radius: 2px;
-}
-
-/* 元数据 */
-.attraction-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 0;
+.update-time {
   font-size: 0.85rem;
-  color: var(--text-light);
-  border-top: 1px solid var(--border-light);
-  padding-top: 12px;
-  margin-top: auto;
+  color: #999;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
 }
 
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.icon-time {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* 空状态 */
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-medium);
-  background-color: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin: 0 20px;
-  transition: var(--transition);
-  border: 1px solid var(--border-light);
-  background-image: var(--texture-pattern);
-  background-size: 100px;
-}
-
-.empty-state:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-hover);
-}
-
-.empty-icon {
-  font-size: 60px;
-  margin-bottom: 20px;
-  opacity: 0.6;
-  color: var(--primary-color);
+.detail-desc {
+  line-height: 1.8;
+  color: #444;
+  font-size: 1.05rem;
+  white-space: pre-wrap;
 }
 
 /* 响应式适配 */
 @media (max-width: 1024px) {
-  .attraction-list {
-    gap: 35px;
-    padding: 50px 15px;
-  }
-
-  .attraction-card:hover {
-    transform: translateY(-8px) scale(1.01);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-  }
-
-  .attraction-desc {
-    -webkit-line-clamp: 2;
-  }
+  .grid-container { grid-template-columns: repeat(2, 1fr); }
+  .modal-content { flex-direction: column; overflow-y: auto; }
+  .detail-body { flex-direction: column; }
+  .detail-image { height: 300px; flex: none; }
+  .detail-info { padding: 30px; flex: none; }
+  .prev-btn { left: 10px; top: 150px; }
+  .next-btn { right: 10px; top: 150px; }
 }
 
-@media (max-width: 768px) {
-  .attraction-header {
-    padding: 40px 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
-  }
-
-  .attraction-header h1 {
-    font-size: 2rem;
-  }
-
-  .attraction-list {
-    grid-template-columns: 1fr;
-    gap: 30px;
-    padding: 40px 15px;
-  }
-
-  .attraction-content {
-    padding: 20px;
-  }
-
-  .content-inner {
-    padding: 12px;
-    min-height: 100px;
-  }
-
-  .attraction-card {
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  }
-
-  .attraction-card:hover {
-    transform: translateY(-6px) scale(1.01);
-  }
-
-  .attraction-name {
-    font-size: 1.3rem;
-  }
+@media (max-width: 600px) {
+  .grid-container { grid-template-columns: 1fr; }
+  .attraction-header h1 { font-size: 2rem; }
 }
 
-@media (max-width: 480px) {
-  .attraction-header h1 {
-    font-size: 1.7rem;
-  }
-
-  .top-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .name-wrapper {
-    max-width: 100%;
-  }
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 </style>

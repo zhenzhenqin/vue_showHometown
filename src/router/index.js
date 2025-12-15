@@ -23,25 +23,25 @@ const router = createRouter({
           name: 'index',
           component: HomeView
         },
-        // 个人信息（无轮播图）
+        // 个人信息
         {
           path: '/user',
           name: 'user',
           component: UserView
         },
-        // 文化（无轮播图）
+        // 文化
         {
           path: '/culture',
           name: 'culture',
           component: CultureView
         },
-        // 特产（无轮播图）
+        // 特产
         {
           path: '/specialties',
           name: 'specialties',
           component: SpecialtiesView
         },
-        // 景区（无轮播图）
+        // 景区
         {
           path: '/attraction',
           name: 'attraction',
