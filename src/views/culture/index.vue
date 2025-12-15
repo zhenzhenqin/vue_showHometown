@@ -1,6 +1,5 @@
 <template>
   <div class="culture-container">
-    <!-- 头部横幅区域 -->
     <div class="culture-header">
       <div class="header-content">
         <h1>衢州文化</h1>
@@ -9,186 +8,240 @@
       </div>
     </div>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading">
-      <div class="spinner"></div>
-      <p>正在加载文化数据...</p>
-    </div>
-
-    <!-- 错误状态 -->
-    <div v-else-if="error" class="error">
-      <div class="error-icon">⚠️</div>
-      <p>{{ error }}</p>
-      <button @click="fetchCultures" class="retry-btn">重新加载</button>
-    </div>
-
-    <!-- 文化列表 -->
-    <div v-else class="culture-list">
-      <div v-for="culture in cultureList" :key="culture.id" class="culture-card">
-        <!-- 图片区域（加边框分层） -->
-        <div class="culture-image" v-if="culture.image">
-          <img :src="culture.image" :alt="culture.title" class="card-img" />
-          <div class="image-overlay"></div>
-        </div>
-        <!-- 卡片内容区（核心立体增强，已删除查看详情按钮） -->
-        <div class="culture-content">
-          <span class="culture-tag">文化遗产</span>
-          <!-- 标题：单行省略 + hover显示完整（气泡提示） -->
-          <div class="title-wrapper">
-            <h2 class="culture-title">{{ culture.title }}</h2>
-            <!-- 标题完整内容气泡（仅当文字溢出时显示） -->
-            <div 
-              class="title-tooltip" 
-              :class="{ 'show-tooltip': isTitleOverflow(culture.title) }"
-            >
-              {{ culture.title }}
-            </div>
-          </div>
-          <!-- 内容区内部分层容器（删除按钮后优化布局） -->
-          <div class="content-inner">
-            <!-- 描述：多行省略 + hover展开完整内容 -->
-            <p class="culture-text" :class="{ 'expand-text': isDescHovered[culture.id] }"
-               @mouseenter="isDescHovered[culture.id] = true"
-               @mouseleave="isDescHovered[culture.id] = false">
-              {{ culture.content }}
-            </p>
-            <div class="culture-meta">
-              <span class="meta-item">
-                <i class="icon-time"></i> 创建: {{ formatDate(culture.createTime) }}
-              </span>
-              <span class="meta-item">
-                <i class="icon-refresh"></i> 更新: {{ formatDate(culture.updateTime) }}
-              </span>
-            </div>
-          </div>
-        </div>
+    <div class="main-content">
+      <div v-if="loading" class="state-box">
+        <div class="spinner"></div>
+        <p>正在加载文化数据...</p>
+      </div>
+      <div v-else-if="error" class="state-box">
+        <p class="error-text">{{ error }}</p>
+        <button @click="fetchCultures" class="retry-btn">重新加载</button>
       </div>
 
-      <!-- 空状态处理（加立体阴影） -->
-      <div v-if="cultureList.length === 0" class="empty-state">
-        <div class="empty-icon">📜</div>
-        <p>暂无文化数据</p>
+      <div v-else class="content-wrapper">
+        <div class="grid-container">
+          <div 
+            v-for="item in paginatedItems" 
+            :key="item.id" 
+            class="grid-item"
+            @click="openModal(item)"
+          >
+            <div class="image-wrapper">
+              <img 
+                :src="item.image" 
+                :alt="item.title" 
+                @error="handleImgError($event)"
+              />
+            </div>
+            <div class="name-bar">
+              <h3>{{ item.title }}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="pagination-bar" v-if="totalPages > 1">
+          <button 
+            :disabled="currentPage === 1" 
+            @click="changePage(currentPage - 1)"
+            class="page-btn"
+          >上一页</button>
+          
+          <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+          
+          <button 
+            :disabled="currentPage === totalPages" 
+            @click="changePage(currentPage + 1)"
+            class="page-btn"
+          >下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <button class="close-btn" @click="closeModal">×</button>
+
+        <button 
+          class="nav-btn prev-btn" 
+          @click="navigateDetail(-1)"
+          :disabled="currentDetailIndex === 0"
+        >❮</button>
+
+        <div class="detail-body" v-if="selectedItem">
+          <div class="detail-image">
+            <img :src="selectedItem.image" :alt="selectedItem.title" @error="handleImgError($event)">
+          </div>
+          <div class="detail-info">
+            <h2>{{ selectedItem.title }}</h2>
+            <div class="detail-meta">
+              <span class="tag">文化遗产</span>
+              <span class="date">📅 {{ formatDate(selectedItem.createTime) }}</span>
+            </div>
+            <div class="detail-desc">
+              <p>{{ selectedItem.content }}</p>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          class="nav-btn next-btn" 
+          @click="navigateDetail(1)"
+          :disabled="currentDetailIndex === cultureList.length - 1"
+        >❯</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getCulture } from '../../api/api'
 
-// 文化数据
+// 数据状态
 const cultureList = ref([])
 const loading = ref(false)
 const error = ref(null)
-// 描述文字hover状态（控制是否展开）
-const isDescHovered = ref({})
 
-// 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
+// 分页状态
+const currentPage = ref(1)
+const pageSize = 9 // 每页9个
 
-// 判断标题是否溢出（用于控制气泡显示）
-const isTitleOverflow = (title) => {
-  // 仅当标题长度超过18个字符时判定为溢出（可根据需求调整）
-  return title.length > 18
-}
+// 弹窗状态
+const showModal = ref(false)
+const selectedItem = ref(null)
 
-// 获取文化数据
+// --- 计算属性 ---
+
+// 总页数
+const totalPages = computed(() => {
+  return Math.ceil(cultureList.value.length / pageSize)
+})
+
+// 当前页数据
+const paginatedItems = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  const end = start + pageSize
+  return cultureList.value.slice(start, end)
+})
+
+// 当前选中项索引 (用于弹窗翻页)
+const currentDetailIndex = computed(() => {
+  if (!selectedItem.value) return -1
+  return cultureList.value.findIndex(item => item.id === selectedItem.value.id)
+})
+
+// --- 方法 ---
+
+// 获取数据
 const fetchCultures = async () => {
   try {
     loading.value = true
     error.value = null
     const response = await getCulture()
-
     if (response.code === 1 && response.data) {
       cultureList.value = response.data
-      // 初始化描述hover状态
-      response.data.forEach(item => {
-        isDescHovered.value[item.id] = false
-      })
     } else {
       throw new Error(response.msg || '数据加载失败')
     }
   } catch (err) {
-    console.error('获取文化数据失败:', err)
-    error.value = err.message || '数据加载失败，请稍后重试'
-    cultureList.value = []
+    console.error(err)
+    error.value = err.message || '数据加载失败'
   } finally {
     loading.value = false
   }
 }
 
-// 组件挂载时：1.强制滚动到顶部 2.获取数据（解决页面进入位置问题）
-onMounted(() => {
-  // 关键代码：强制页面瞬间滚动到顶部（x=0, y=0）
-  window.scrollTo({
-    top: 0,
-    left: 0,
-    behavior: 'instant' // 无动画，避免延迟感
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric'
   })
-  
+}
+
+// 图片错误处理
+const handleImgError = (e) => {
+  // e.target.src = require('@/assets/images/default-culture.png') // 如有默认图可解开
+  e.target.style.backgroundColor = '#eee' // 简单降级处理
+}
+
+// --- 交互逻辑 ---
+
+// 翻页
+const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 打开弹窗
+const openModal = (item) => {
+  selectedItem.value = item
+  showModal.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+// 关闭弹窗
+const closeModal = () => {
+  showModal.value = false
+  selectedItem.value = null
+  document.body.style.overflow = ''
+}
+
+// 弹窗内切换
+const navigateDetail = (direction) => {
+  const newIndex = currentDetailIndex.value + direction
+  if (newIndex >= 0 && newIndex < cultureList.value.length) {
+    selectedItem.value = cultureList.value[newIndex]
+  }
+}
+
+onMounted(() => {
+  window.scrollTo(0, 0)
   fetchCultures()
 })
 </script>
 
 <style scoped>
-/* 基础样式与变量（同步特产页立体参数） */
+/* 基础变量 (保持原有一致性) */
 :root {
   --primary-color: #1a5e38;
-  --primary-light: #2a7d4a;
   --secondary-color: #e8f4ea;
   --text-dark: #333;
   --text-medium: #666;
-  --text-light: #999;
   --white: #fff;
-  --card-bg: #fff;
-  --content-bg: #fdfdfd;
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
-  --shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.22);
-  --inner-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.05);
-  --border-light: #f0f0f0;
-  --radius: 12px;
-  --transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bg-color: #f9fbf8;
 }
 
 .culture-container {
-  min-height: calc(100vh - 144px);
-  background-color: #f9fbf8;
-  padding: 0;
+  background-color: var(--bg-color);
+  min-height: 100vh;
+  padding-bottom: 40px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* 头部样式（加阴影增强分层） */
+/* =========================================
+   1. 头部样式 (严格保留原版)
+   ========================================= */
 .culture-header {
   background: linear-gradient(rgba(26, 94, 56, 0.9), rgba(26, 94, 56, 0.85)),
-    url('https://picsum.photos/id/1036/1920/500') center/cover no-repeat;
+              url('https://picsum.photos/id/1036/1920/500') center/cover no-repeat;
   color: var(--white);
   padding: 60px 20px;
-  text-align: center; 
+  text-align: center;
   position: relative;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
-
 .header-content {
   max-width: 800px;
   margin: 0 auto;
 }
-
 .culture-header h1 {
   font-size: 2.5rem;
   margin-bottom: 15px;
   text-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
   letter-spacing: 0.5px;
 }
-
 .culture-header p {
   font-size: 1.2rem;
   opacity: 0.9;
@@ -196,7 +249,6 @@ onMounted(() => {
   line-height: 1.6;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
 .divider {
   width: 80px;
   height: 3px;
@@ -206,18 +258,21 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* 加载状态（加立体阴影） */
-.loading {
+/* =========================================
+   2. 主体内容样式 (新版网格布局)
+   ========================================= */
+.content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* 状态提示区 */
+.state-box {
   text-align: center;
   padding: 80px 20px;
   color: var(--text-medium);
-  background-color: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  max-width: 600px;
-  margin: 0 auto;
 }
-
 .spinner {
   width: 50px;
   height: 50px;
@@ -226,405 +281,255 @@ onMounted(() => {
   border-radius: 50%;
   animation: spin 1.2s linear infinite;
   margin: 0 auto 25px;
-  box-shadow: 0 0 15px rgba(26, 94, 56, 0.1);
 }
-
 @keyframes spin {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.05); }
-  100% { transform: rotate(360deg) scale(1); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
-
-/* 错误状态（加立体阴影） */
-.error {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-medium);
-  background-color: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.error-icon {
-  font-size: 40px;
-  margin-bottom: 20px;
-  color: #e74c3c;
-  text-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
-}
-
 .retry-btn {
   background-color: var(--primary-color);
   color: white;
   border: none;
-  padding: 12px 24px;
+  padding: 10px 24px;
   border-radius: 30px;
   cursor: pointer;
   margin-top: 15px;
-  font-size: 1rem;
-  transition: var(--transition);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 6px 15px rgba(26, 94, 56, 0.3);
 }
 
-.retry-btn:hover {
-  background-color: var(--primary-light);
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(26, 94, 56, 0.4);
-}
-
-/* 列表容器（增大间距，突出卡片） */
-.culture-list {
+/* --- Grid 网格布局 --- */
+.grid-container {
   display: grid;
-  gap: 40px;
-  padding: 60px 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, 1fr); /* 强制3列 */
+  gap: 35px;
+  margin-bottom: 40px;
 }
 
-/* 文化卡片（核心立体结构） */
-.culture-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+/* 卡片样式 */
+.grid-item {
+  background: #fff;
+  border-radius: 12px;
   overflow: hidden;
-  transition: var(--transition);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  position: relative;
-  border: 1px solid var(--border-light);
-  padding: 4px;
+  border: 1px solid #f0f0f0;
+}
+.grid-item:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.15);
 }
 
-.culture-card:hover {
-  transform: translateY(-12px) scale(1.02);
-  box-shadow: var(--shadow-hover);
-  z-index: 10;
-}
-
-/* 卡片图片（加边框分层） */
-.culture-image {
-  height: 220px;
+/* 图片区 */
+.image-wrapper {
+  height: 240px;
   overflow: hidden;
   position: relative;
-  border-radius: calc(var(--radius) - 4px);
-  border: 1px solid var(--border-light);
-  margin-bottom: 4px;
+  background: #f5f5f5;
 }
-
-.card-img {
+.image-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: var(--transition);
+  transition: transform 0.5s;
+}
+.grid-item:hover img {
+  transform: scale(1.08);
 }
 
-.culture-card:hover .card-img {
-  transform: scale(1.1);
+/* 标题区 */
+.name-bar {
+  padding: 20px;
+  text-align: center;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
 }
-
-.image-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  z-index: 1;
-}
-
-/* 卡片内容区（核心立体增强，删除按钮后优化内边距） */
-.culture-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--content-bg);
-  border-radius: calc(var(--radius) - 4px);
-  border: 1px solid var(--border-light);
-  padding: 25px;
-  box-shadow: var(--inner-shadow);
-  position: relative;
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 15%);
-  /* 删除按钮后减小底部内边距，避免留白过多 */
-  padding-bottom: 20px;
-}
-
-/* 文化标签（立体阴影+hover动效） */
-.culture-tag {
-  display: inline-block;
-  background-color: var(--secondary-color);
-  color: var(--primary-color);
-  font-size: 0.8rem;
-  padding: 5px 14px;
-  border-radius: 20px;
-  margin-bottom: 15px;
-  font-weight: 500;
-  width: fit-content;
-  box-shadow: 0 4px 10px rgba(26, 94, 56, 0.18);
-  border: 1px solid rgba(26, 94, 56, 0.1);
-  transition: var(--transition);
-  transform: translateY(0);
-}
-
-.culture-card:hover .culture-tag {
-  background-color: var(--primary-color);
-  color: var(--white);
-  box-shadow: 0 6px 14px rgba(26, 94, 56, 0.3);
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* 标题容器：控制单行省略与气泡定位 */
-.title-wrapper {
-  position: relative;
-  width: 100%;
-  margin-bottom: 18px;
-}
-
-/* 标题：单行省略（核心样式） */
-.culture-title {
-  font-size: 1.4rem;
+.name-bar h3 {
+  margin: 0;
+  font-size: 1.25rem;
   color: var(--text-dark);
-  line-height: 1.4;
-  transition: var(--transition);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-light);
-  /* 单行省略关键样式 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
-  cursor: default;
 }
 
-.culture-card:hover .culture-title {
+/* --- 分页条 --- */
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-top: 30px;
+}
+.page-btn {
+  padding: 8px 20px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #555;
+}
+.page-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
   color: var(--primary-color);
-  text-shadow: 0 3px 6px rgba(26, 94, 56, 0.15);
+  background: var(--secondary-color);
+}
+.page-btn:disabled {
+  background: #f5f5f5;
+  color: #ccc;
+  cursor: not-allowed;
 }
 
-/* 标题气泡：hover显示完整内容 */
-.title-tooltip {
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.8);
-  color: var(--white);
-  font-size: 0.9rem;
-  padding: 6px 12px;
-  border-radius: 6px;
-  white-space: nowrap;
-  z-index: 20;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* 标题hover时显示气泡 */
-.title-wrapper:hover .title-tooltip {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* 气泡底部小三角 */
-.title-tooltip::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 6px 6px 0;
-  border-style: solid;
-  border-color: rgba(0, 0, 0, 0.8) transparent transparent;
-}
-
-/* 内容区内部分层容器（删除按钮后优化布局） */
-.content-inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-  background: var(--white);
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  /* 取消底部margin，避免与内容区底部产生多余间距 */
-  margin-bottom: 0;
-  /* 确保描述展开时不超出容器，避免布局抖动 */
-  position: relative;
-  min-height: 100px;
-}
-
-/* 描述：多行省略 + hover展开（核心样式） */
-.culture-text {
-  color: var(--text-medium);
-  line-height: 1.7;
-  margin-bottom: 15px;
-  flex: 1;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 8px 0;
-  /* 多行省略关键样式（兼容主流浏览器） */
-  display: -webkit-box;
-  -webkit-line-clamp: 3; /* 默认显示3行，可调整 */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  height: auto; /* 初始自动高度 */
-}
-
-/*  hover时展开完整内容 */
-.culture-text.expand-text {
-  -webkit-line-clamp: unset; /* 取消行数限制 */
-  height: auto; /* 高度自适应 */
-  max-height: 300px; /* 最大高度限制，避免内容过长溢出卡片 */
-  overflow-y: auto; /* 内容超限时滚动 */
-  scrollbar-width: thin; /* 细滚动条（Firefox） */
-}
-
-/* 滚动条美化（Chrome/Safari） */
-.culture-text.expand-text::-webkit-scrollbar {
-  width: 4px;
-}
-.culture-text.expand-text::-webkit-scrollbar-thumb {
-  background-color: var(--text-light);
-  border-radius: 2px;
-}
-
-/* 元数据（立体分隔，删除按钮后底部对齐） */
-.culture-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 0;
-  font-size: 0.85rem;
-  color: var(--text-light);
-  border-top: 1px solid var(--border-light);
-  padding-top: 12px;
-  /* 让元数据区始终靠底部显示，填补删除按钮后的空间 */
-  margin-top: auto;
-}
-
-.meta-item {
+/* =========================================
+   3. 详情弹窗样式
+   ========================================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.75);
+  z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 6px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  justify-content: center;
+  padding: 20px;
 }
 
-.icon-time::before {
-  content: "📅";
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.modal-content {
+  background: #fff;
+  width: 900px;
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  animation: modalFadeIn 0.3s ease;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+  overflow: hidden;
 }
 
-.icon-refresh::before {
-  content: "🔄";
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+/* 关闭按钮 */
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #999;
+  cursor: pointer;
+  z-index: 10;
+  line-height: 1;
 }
+.close-btn:hover { color: #333; }
 
-/* 已删除所有.read-more相关样式 */
-
-/* 空状态（立体阴影） */
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-medium);
-  background-color: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin: 0 20px;
-  transition: var(--transition);
-  border: 1px solid var(--border-light);
+/* 左右导航按钮 */
+.nav-btn {
+  background: rgba(255,255,255,0.9);
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
-
-.empty-state:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-hover);
+.nav-btn:hover:not(:disabled) {
+  background: var(--primary-color);
+  color: #fff;
+  transform: translateY(-50%) scale(1.1);
 }
+.nav-btn:disabled { opacity: 0; pointer-events: none; }
+.prev-btn { left: 20px; }
+.next-btn { right: 20px; }
 
-.empty-icon {
-  font-size: 60px;
+/* 详情内容布局 */
+.detail-body {
+  display: flex;
+  width: 100%;
+}
+.detail-image {
+  flex: 1.2; /* 图片占比稍大 */
+  background: #eee;
+  min-height: 400px;
+}
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.detail-info {
+  flex: 1;
+  padding: 50px 40px;
+  overflow-y: auto;
+  max-height: 85vh;
+}
+.detail-info h2 {
+  font-size: 2rem;
   margin-bottom: 20px;
-  opacity: 0.6;
-  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  color: var(--text-dark);
+  line-height: 1.3;
+}
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+.detail-meta .tag {
+  background: var(--secondary-color);
+  color: var(--primary-color);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+.detail-meta .date {
+  color: var(--text-medium);
+  font-size: 0.95rem;
+}
+.detail-desc {
+  line-height: 1.8;
+  color: #444;
+  font-size: 1.05rem;
+  white-space: pre-wrap; /* 保留换行 */
 }
 
 /* 响应式适配 */
 @media (max-width: 1024px) {
-  .culture-list {
-    gap: 35px;
-    padding: 50px 15px;
-  }
-  .culture-card:hover {
-    transform: translateY(-8px) scale(1.01);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-  }
-  .culture-text {
-    -webkit-line-clamp: 2; /* 中屏显示2行 */
-  }
+  .grid-container { grid-template-columns: repeat(2, 1fr); }
+  .modal-content { flex-direction: column; overflow-y: auto; }
+  .detail-body { flex-direction: column; }
+  .detail-image { height: 300px; flex: none; }
+  .detail-info { padding: 30px; flex: none; }
+  /* 移动端调整导航按钮位置 */
+  .prev-btn { left: 10px; top: 150px; }
+  .next-btn { right: 10px; top: 150px; }
 }
 
-@media (max-width: 768px) {
-  .culture-header {
-    padding: 40px 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
-  }
-  .culture-header h1 {
-    font-size: 2rem;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-  .culture-list {
-    grid-template-columns: 1fr;
-    gap: 30px;
-    padding: 40px 15px;
-  }
-  .culture-image {
-    height: 200px;
-  }
-  .culture-content {
-    padding: 20px;
-    padding-bottom: 15px; /* 小屏进一步减小底部内边距 */
-  }
-  .content-inner {
-    padding: 12px;
-    min-height: 80px;
-  }
-  .culture-card {
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  }
-  .culture-card:hover {
-    transform: translateY(-6px) scale(1.01);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  }
-  .culture-title {
-    font-size: 1.3rem;
-    padding-bottom: 6px;
-  }
-  .culture-text {
-    -webkit-line-clamp: 2; /* 小屏显示2行 */
-  }
-  .title-tooltip {
-    font-size: 0.8rem;
-    padding: 4px 8px;
-    top: -35px;
-  }
+@media (max-width: 600px) {
+  .grid-container { grid-template-columns: 1fr; }
+  .culture-header h1 { font-size: 2rem; }
 }
 
-@media (max-width: 480px) {
-  .culture-header h1 {
-    font-size: 1.7rem;
-  }
-  .culture-header p {
-    font-size: 1rem;
-  }
-  .culture-text {
-    -webkit-line-clamp: 2;
-  }
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 </style>
