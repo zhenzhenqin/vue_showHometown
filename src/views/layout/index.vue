@@ -1,13 +1,15 @@
 <script setup>
 import {
   ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem,
-  ElRow, ElCol, ElCard, ElCarousel, ElCarouselItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar
+  ElRow, ElCol, ElCard, ElCarousel, ElCarouselItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar,
+  ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElMessage, ElMessageBox
 } from 'element-plus';
 import {
-  UserFilled, SwitchButton, User, CaretBottom
+  UserFilled, SwitchButton, User, CaretBottom, Lock, Edit
 } from '@element-plus/icons-vue'; 
 import { useRouter } from 'vue-router';
-import { onMounted, ref, watch, computed } from 'vue';
+import { onMounted, ref, watch, computed, reactive } from 'vue';
+import { userEditPassword } from '@/api/user'; // 引入修改密码接口
 
 const router = useRouter();
 const screenWidth = ref(window.innerWidth);
@@ -34,16 +36,100 @@ const checkLogin = () => {
 
 // 退出登录
 const handleLogout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('userInfo');
-  userInfo.value = null;
-  router.push('/login');
+  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userInfo');
+    userInfo.value = null;
+    router.push('/login');
+    ElMessage.success('已退出登录');
+  }).catch(() => {});
 };
 
 // 跳转登录
 const goToLogin = () => {
   router.push('/login');
 };
+
+// ---- 修改密码逻辑 (新增) ----
+const passDialogVisible = ref(false);
+const passFormRef = ref(null);
+const passLoading = ref(false);
+
+const passForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+});
+
+// 校验规则
+const validatePass2 = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'));
+  } else if (value !== passForm.newPassword) {
+    callback(new Error('两次输入密码不一致!'));
+  } else {
+    callback();
+  }
+};
+
+const passRules = {
+  oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [{ required: true, validator: validatePass2, trigger: 'blur' }]
+};
+
+// 打开修改密码弹窗
+const openPassDialog = () => {
+  passDialogVisible.value = true;
+  if (passFormRef.value) passFormRef.value.resetFields();
+  passForm.oldPassword = '';
+  passForm.newPassword = '';
+  passForm.confirmPassword = '';
+};
+
+// 提交修改密码
+const submitPass = () => {
+  if (!passFormRef.value) return;
+  passFormRef.value.validate(async (valid) => {
+    if (valid) {
+      passLoading.value = true;
+      try {
+        const params = {
+          userId: userInfo.value.id, // 从当前登录信息获取ID
+          oldPassword: passForm.oldPassword,
+          newPassword: passForm.newPassword
+        };
+        
+        const res = await userEditPassword(params);
+        
+        if (res.code === 1) {
+          ElMessage.success('密码修改成功，请重新登录');
+          passDialogVisible.value = false;
+          // 修改成功后强制退出
+          localStorage.removeItem('token');
+          localStorage.removeItem('userInfo');
+          userInfo.value = null;
+          router.push('/login');
+        } else {
+          ElMessage.error(res.msg || '修改失败，请检查旧密码');
+        }
+      } catch (error) {
+        console.error(error);
+        ElMessage.error('系统异常，请稍后重试');
+      } finally {
+        passLoading.value = false;
+      }
+    }
+  });
+};
+
 // -----------------------
 
 // 监听路由变化，控制导航栏样式
@@ -142,11 +228,17 @@ const quzhouIntroduction = {
                 <el-icon class="dropdown-icon"><CaretBottom /></el-icon>
               </div>
               <template #dropdown>
-                <el-dropdown-menu>
+                <el-dropdown-menu class="custom-dropdown">
                   <div class="dropdown-header">你好，{{ userInfo.username }}</div>
+                  
                   <el-dropdown-item @click="router.push('/user')">
                     <el-icon><UserFilled /></el-icon>个人中心
                   </el-dropdown-item>
+                  
+                  <el-dropdown-item @click="openPassDialog">
+                    <el-icon><Lock /></el-icon>修改密码
+                  </el-dropdown-item>
+                  
                   <el-dropdown-item divided @click="handleLogout" style="color: #f56c6c;">
                     <el-icon><SwitchButton /></el-icon>退出登录
                   </el-dropdown-item>
@@ -216,6 +308,27 @@ const quzhouIntroduction = {
         <router-view />
       </template>
     </el-main>
+
+    <el-dialog v-model="passDialogVisible" title="修改密码" width="450px" :close-on-click-modal="false" center destroy-on-close class="custom-dialog">
+      <el-form ref="passFormRef" :model="passForm" :rules="passRules" label-width="85px" style="padding-right: 20px; padding-top: 10px;">
+        <el-form-item label="旧密码" prop="oldPassword">
+          <el-input v-model="passForm.oldPassword" type="password" show-password placeholder="请输入当前使用的密码" />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passForm.newPassword" type="password" show-password placeholder="请输入新密码（6-20位）" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="passForm.confirmPassword" type="password" show-password placeholder="请再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="passDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitPass" :loading="passLoading">确认修改</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
   </el-container>
 </template>
 
@@ -231,10 +344,9 @@ const quzhouIntroduction = {
   display: flex; align-items: center; justify-content: center; 
   background-color: transparent !important; 
   transition: all 0.4s ease;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent); /* 顶部渐变阴影 */
+  background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
 }
 
-/* 滚动后的样式：磨砂玻璃效果 */
 .scrolled { 
   background: rgba(26, 94, 56, 0.95) !important; 
   backdrop-filter: blur(12px); 
@@ -245,29 +357,25 @@ const quzhouIntroduction = {
 .nav-outer-container { width: 100%; padding: 0 30px; box-sizing: border-box; }
 .nav-content { 
   max-width: 1400px; margin: 0 auto; width: 100%; height: 100%;
-  position: relative; /* 为绝对定位做参照 */
+  position: relative; 
   display: flex; align-items: center; justify-content: center;
 }
 
 /* 菜单区域 */
 .nav-menu { 
   width: 100%; height: 100%; border-bottom: none !important; 
-  display: flex; justify-content: center; /* 菜单整体居中 */
+  display: flex; justify-content: center; 
   background: transparent !important;
 }
 
-/* 菜单项：平分空间 */
 .main-nav-item {
-  flex: 1; 
-  max-width: 180px; /* 限制最大宽度，防止太散 */
+  flex: 1; max-width: 180px; 
   display: flex; justify-content: center; align-items: center;
   padding: 0 !important; height: 100%; cursor: pointer;
-  background: transparent !important;
-  position: relative;
+  background: transparent !important; position: relative;
 }
 .main-nav-item:hover { background-color: transparent !important; }
 
-/* 菜单文字 */
 .nav-text { 
   font-size: 17px; font-weight: 500; color: rgba(255,255,255,0.9); 
   letter-spacing: 1.5px; transition: all 0.3s; 
@@ -279,7 +387,6 @@ const quzhouIntroduction = {
 }
 .main-nav-item.is-active .nav-text { font-weight: 700; color: #fff; }
 
-/* 底部指示条 */
 .nav-indicator {
   position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
   width: 0; height: 3px; background-color: #fff; border-radius: 2px;
@@ -289,16 +396,11 @@ const quzhouIntroduction = {
 .main-nav-item.is-active .nav-indicator,
 .main-nav-item:hover .nav-indicator { width: 28px; opacity: 1; }
 
-/* ------------------ 右侧登录角落 (绝对定位) ------------------ */
+/* ------------------ 右侧登录角落 ------------------ */
 .login-corner {
-  position: absolute; 
-  right: 0; /* 紧贴最右侧 */
-  top: 50%; 
-  transform: translateY(-50%);
-  z-index: 2001;
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 2001;
 }
 
-/* 未登录：极简胶囊按钮 */
 .login-capsule {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 16px;
@@ -316,11 +418,8 @@ const quzhouIntroduction = {
 }
 .login-icon { color: #fff; font-size: 16px; transition: color 0.3s; }
 .login-label { color: #fff; font-size: 14px; font-weight: 500; transition: color 0.3s; }
+.login-capsule:hover .login-icon, .login-capsule:hover .login-label { color: #1a5e38; }
 
-.login-capsule:hover .login-icon,
-.login-capsule:hover .login-label { color: #1a5e38; }
-
-/* 已登录：头像 */
 .user-dropdown-link { display: flex; align-items: center; cursor: pointer; transition: opacity 0.3s; }
 .user-dropdown-link:hover { opacity: 0.9; }
 .nav-avatar { background-color: #f0f7f2; color: #1a5e38; font-weight: bold; border: 2px solid rgba(255,255,255,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -332,11 +431,10 @@ const quzhouIntroduction = {
 .home-content { padding-top: 0; }
 .other-content { width: 100%; max-width: 1200px; margin: 0 auto; padding: 100px 20px 40px; min-height: 80vh; }
 
-/* 轮播图 */
 .carousel-container { position: relative; width: 100%; margin-top: 0 !important; }
 .carousel { width: 100%; }
 .carousel-img { width: 100%; height: 100%; object-fit: cover; transition: transform 8s ease; }
-.el-carousel__item.is-active .carousel-img { transform: scale(1.05); } /* 缓慢放大动画 */
+.el-carousel__item.is-active .carousel-img { transform: scale(1.05); }
 .img-mask {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.1) 100%);
@@ -356,40 +454,22 @@ const quzhouIntroduction = {
 .intro-title { font-size: 2.4rem; color: #1a5e38; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; }
 .intro-subtitle { font-size: 1.1rem; color: #666; font-weight: 300; letter-spacing: 1px; }
 
-/* 美化后的介绍卡片 (新中式风格) */
+/* 卡片美化 */
 .intro-text-card {
   border: none !important;
-  background: linear-gradient(135deg, #ffffff 0%, #f4fcf6 100%); /* 极淡绿渐变 */
+  background: linear-gradient(135deg, #ffffff 0%, #f4fcf6 100%);
   border-radius: 12px !important;
-  padding: 40px 35px;
-  height: 100%;
+  padding: 40px 35px; height: 100%;
   position: relative; overflow: hidden;
   box-shadow: 0 10px 25px rgba(26, 94, 56, 0.05);
   transition: all 0.4s ease;
 }
 .intro-text-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(26, 94, 56, 0.12); }
-/* 左侧装饰条 */
-.intro-text-card::after {
-  content: ""; position: absolute; top: 30px; bottom: 30px; left: 0; width: 5px;
-  background-color: #1a5e38; border-radius: 0 4px 4px 0; opacity: 0.8;
-}
-/* 右下角“礼”字水印 */
-.intro-text-card::before {
-  content: "礼"; position: absolute; right: -10px; bottom: -40px;
-  font-size: 180px; font-family: "KaiTi", "STKaiti", serif; color: #1a5e38; opacity: 0.07;
-  z-index: 0; pointer-events: none; transform: rotate(-10deg);
-}
-.intro-text {
-  position: relative; z-index: 1;
-  font-size: 1.05rem; line-height: 2.2; color: #2c3e50;
-  text-align: justify; text-indent: 2em; letter-spacing: 1px;
-}
+.intro-text-card::after { content: ""; position: absolute; top: 30px; bottom: 30px; left: 0; width: 5px; background-color: #1a5e38; border-radius: 0 4px 4px 0; opacity: 0.8; }
+.intro-text-card::before { content: "礼"; position: absolute; right: -10px; bottom: -40px; font-size: 180px; font-family: "KaiTi", "STKaiti", serif; color: #1a5e38; opacity: 0.07; z-index: 0; pointer-events: none; transform: rotate(-10deg); }
+.intro-text { position: relative; z-index: 1; font-size: 1.05rem; line-height: 2.2; color: #2c3e50; text-align: justify; text-indent: 2em; letter-spacing: 1px; }
 
-/* 城市亮点卡片 */
-.intro-highlight-card { 
-  background: #f9fbf8; padding: 30px; border-radius: 12px; border: 1px solid #eef2ed; height: 100%; 
-  transition: all 0.3s;
-}
+.intro-highlight-card { background: #f9fbf8; padding: 30px; border-radius: 12px; border: 1px solid #eef2ed; height: 100%; transition: all 0.3s; }
 .intro-highlight-card:hover { border-color: #1a5e38; background: #fff; }
 .highlight-title { font-size: 1.2rem; color: #1a5e38; margin-bottom: 25px; padding-bottom: 12px; border-bottom: 2px solid #e8f5e9; letter-spacing: 1px; }
 .highlight-list { display: flex; flex-direction: column; gap: 20px; }
@@ -398,81 +478,24 @@ const quzhouIntroduction = {
 .highlight-item-title { font-weight: 600; color: #333; font-size: 1rem; display: block; margin-bottom: 4px; }
 .highlight-item-desc { font-size: 0.9rem; color: #666; line-height: 1.5; }
 
-/* 特色标签 */
-.features-container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 60px; }
-.feature-item { 
-  background: #fff; color: #1a5e38; border: 1px solid #1a5e38; 
-  padding: 8px 24px; border-radius: 50px; font-size: 0.95rem; 
-  transition: all 0.3s; cursor: default;
-}
-.feature-item:hover { background: #1a5e38; color: #fff; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(26,94,56,0.2); }
+/* 修复标签遮挡 */
+.intro-content-row { margin-bottom: 60px; width: 100%; max-width: 1400px; margin-left: auto; margin-right: auto; position: relative; z-index: 2; }
+.features-container { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 40px; width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; padding: 20px 10px; position: relative; z-index: 10; clear: both; }
+.feature-item { background-color: #ffffff; color: #5c7a63; border: 1px solid #e0e9e3; padding: 10px 24px; border-radius: 50px; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.5px; cursor: default; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); }
+.feature-item:hover { background-color: #1a5e38; color: #ffffff; border-color: #1a5e38; transform: translateY(-3px); box-shadow: 0 8px 15px rgba(26, 94, 56, 0.25); }
 
-/* 1. 增加卡片行底部的硬性间距 */
-.intro-content-row {
-  margin-bottom: 60px; /* 从 30px 增加到 60px，强行撑开距离 */
-  width: 100%;
-  max-width: 1400px;
-  margin-left: auto;
-  margin-right: auto;
-  position: relative;
-  z-index: 2; /* 确保卡片层级 */
-}
+/* 弹窗样式调整 */
+:deep(.custom-dialog) { border-radius: 12px; overflow: hidden; }
+:deep(.el-button--primary) { background-color: #1a5e38; border-color: #1a5e38; }
+:deep(.el-button--primary:hover) { background-color: #2a7d4a; border-color: #2a7d4a; }
 
-/* 2. 特色标签容器：提升层级，防止被上方元素投影覆盖 */
-.features-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px; /* 标签间距 */
-  justify-content: center;
-  margin-top: 40px;
-  width: 100%;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 20px 10px;
-  
-  /* 关键修复属性 */
-  position: relative; 
-  z-index: 10; /* 层级设高，绝对处于最上层 */
-  clear: both; /* 清除可能存在的浮动影响 */
-}
-
-/* 3. 标签美化：胶囊风格，悬停微动 */
-.feature-item {
-  background-color: #ffffff;
-  color: #5c7a63; /* 优雅的灰绿色 */
-  border: 1px solid #e0e9e3; /* 极淡的边框 */
-  padding: 10px 24px;
-  border-radius: 50px; /* 完全圆角 */
-  font-size: 0.95rem;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  cursor: default;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); /* 基础微阴影 */
-}
-
-/* 标签悬停效果 */
-.feature-item:hover {
-  background-color: #1a5e38; /* 衢州绿 */
-  color: #ffffff;
-  border-color: #1a5e38;
-  transform: translateY(-3px); /* 向上浮动 */
-  box-shadow: 0 8px 15px rgba(26, 94, 56, 0.25); /* 绿色柔光阴影 */
-}
-
-/* 响应式调整：确保小屏幕也不拥挤 */
 @media (max-width: 768px) {
-  .intro-content-row {
-    margin-bottom: 40px;
-  }
-  .features-container {
-    margin-top: 20px;
-    gap: 10px;
-  }
-  .feature-item {
-    font-size: 0.85rem;
-    padding: 8px 16px;
-  }
+  .nav-menu { padding: 0; }
+  .login-label { display: none; }
+  .hero-text h1 { font-size: 2rem; }
+  .intro-text-card { padding: 25px; }
+  .intro-content-row { margin-bottom: 40px; }
+  .features-container { margin-top: 20px; gap: 10px; }
+  .feature-item { font-size: 0.85rem; padding: 8px 16px; }
 }
 </style>

@@ -3,7 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Iphone, Picture } from '@element-plus/icons-vue'
-import { getCaptchaImage, userLogin, userRegister } from '@/api/api'
+import { getCaptchaImage, userLogin, userRegister } from '@/api/user'
 
 const router = useRouter()
 const isLogin = ref(true) // true显示登录，false显示注册
