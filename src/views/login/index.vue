@@ -57,7 +57,7 @@ const handleLogin = async () => {
     if (res.code === 1) {
       ElMessage.success('欢迎回来，' + res.data.username)
       // 存储 Token 和用户信息
-      localStorage.setItem('token', res.data.token || 'mock_token') // 假设后端返回token，如果没有暂时模拟
+      localStorage.setItem('token', res.data.token || 'mock_token') 
       localStorage.setItem('userInfo', JSON.stringify(res.data))
       
       router.push('/index')

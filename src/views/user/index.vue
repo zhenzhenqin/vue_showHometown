@@ -90,7 +90,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { getUser } from '../../api/api'
+import { getUser, getUserById } from '../../api/api'
 
 // 响应式数据
 const userProfile = ref({
@@ -129,12 +129,14 @@ const formatPhone = (phone) => {
   return `${phone.slice(0, 3)}****${phone.slice(7)}`
 }
 
+const currentId = JSON.parse(localStorage.getItem('userInfo')).id
+
 // 获取个人信息
 const fetchUserProfile = async () => {
   try {
     loading.value = true
     error.value = null
-    const response = await getUser()
+    const response = await getUserById(currentId)
     if (response.code === 1 && response.data) {
       const { password, id, ...safeData } = response.data // 过滤敏感信息
       userProfile.value = { ...userProfile.value, ...safeData }

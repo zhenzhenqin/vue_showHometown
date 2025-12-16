@@ -21,6 +21,11 @@ export const getUser = () => {
   return request.get('/user/all');
 }
 
+//根据用户id查询用户信息
+export const getUserById = (id) => {
+  return request.get(`/user/${id}`);
+}
+
 //获取图形验证码
 export const getCaptchaImage = () => {
   return request.get('/captchaImage')
