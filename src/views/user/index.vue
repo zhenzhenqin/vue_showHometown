@@ -18,7 +18,7 @@
     <!-- 错误状态 -->
     <div v-else-if="error" class="error">
       <div class="error-icon">⚠️</div>
-      <p>{{ error }}</p>
+      <p>请登陆后查看</p>
       <button @click="fetchUserProfile" class="retry-btn">重新加载</button>
     </div>
 

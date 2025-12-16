@@ -20,3 +20,18 @@ export const getAttraction = () => {
 export const getUser = () => {
   return request.get('/user/all');
 }
+
+//获取图形验证码
+export const getCaptchaImage = () => {
+  return request.get('/captchaImage')
+}
+
+//用户登录
+export const userLogin = (data) => {
+  return request.post('/user/login', data)
+}
+
+//  用户注册
+export const userRegister = (data) => {
+  return request.post('/user/register', data)
+}
