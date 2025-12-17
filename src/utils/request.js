@@ -13,6 +13,17 @@ const request = axios.create({
 request.interceptors.request.use(
   config => {
     // 在发送请求之前做些什么
+
+    //获取当前登录用户的id
+    const user = JSON.parse(localStorage.getItem('userInfo'))
+    const userId = user ? user.id : null
+
+    //  如果存在 ID，则添加到请求头中
+    if (userId) {
+      // 后端通过 request.getHeader("User-ID") 获取 
+      config.headers['User-ID'] = userId
+    }
+
     return config
   },
   error => {

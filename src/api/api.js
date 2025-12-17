@@ -5,13 +5,8 @@ export const getCulture = () => {
   return request.get('/cultures/all')
 }
 
-
 //特产
 export const getSpecialty = () => {
   return request.get('/specialties/all')
 }
 
-//景区
-export const getAttraction = () => {
-  return request.get('attractions/all');
-}

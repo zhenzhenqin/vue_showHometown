@@ -82,6 +82,30 @@
                 📍 {{ selectedItem.location }}
               </span>
             </div>
+
+            <div class="action-bar">
+              <button 
+                class="action-btn like-btn" 
+                :class="{ active: selectedItem.isLiked === 1 }"
+                @click="handleLike(selectedItem)"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                </svg>
+                <span>{{ selectedItem.liked || 0 }}</span>
+              </button>
+
+              <button 
+                class="action-btn dislike-btn" 
+                :class="{ active: selectedItem.isLiked === 2 }"
+                @click="handleDislike(selectedItem)"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                </svg>
+                <span>{{ selectedItem.disliked || 0 }}</span>
+              </button>
+            </div>
             
             <div class="update-time">
               更新于: {{ formatDate(selectedItem.updateTime) }}
@@ -105,7 +129,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getAttraction } from '../../api/api'
+// 确保引用路径正确
+import { getAttraction, likeAttraction, dislikeAttraction } from '@/api/attraction'
 
 // 数据状态
 const attractionList = ref([])
@@ -114,7 +139,7 @@ const error = ref(null)
 
 // 分页状态
 const currentPage = ref(1)
-const pageSize = 9 // 每页9个
+const pageSize = 9
 
 // 弹窗状态
 const showModal = ref(false)
@@ -122,19 +147,16 @@ const selectedItem = ref(null)
 
 // --- 计算属性 ---
 
-// 总页数
 const totalPages = computed(() => {
   return Math.ceil(attractionList.value.length / pageSize)
 })
 
-// 当前页数据
 const paginatedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize
   const end = start + pageSize
   return attractionList.value.slice(start, end)
 })
 
-// 当前选中项索引 (用于弹窗翻页)
 const currentDetailIndex = computed(() => {
   if (!selectedItem.value) return -1
   return attractionList.value.findIndex(item => item.id === selectedItem.value.id)
@@ -148,9 +170,15 @@ const fetchAttractions = async () => {
     loading.value = true
     error.value = null
     const response = await getAttraction()
-    // 假设接口返回结构统一为 { code: 1, data: [...] }
+    // 假设接口返回结构: { code: 1, data: [ ... ] }
     if (response.code === 1 && Array.isArray(response.data)) {
       attractionList.value = response.data
+      // 初始化点赞状态字段，防止 undefined
+      attractionList.value.forEach(item => {
+          if (item.isLiked === undefined) item.isLiked = 0;
+          if (item.liked === undefined) item.liked = 0;
+          if (item.disliked === undefined) item.disliked = 0;
+      })
     } else {
       throw new Error(response.msg || '数据加载失败')
     }
@@ -159,6 +187,76 @@ const fetchAttractions = async () => {
     error.value = err.message || '加载失败，请检查网络'
   } finally {
     loading.value = false
+  }
+}
+
+// --- 核心：点赞/差评 交互逻辑 ---
+
+// 处理点赞 (isLiked: 0=无, 1=赞, 2=踩)
+const handleLike = async (item) => {
+  if (!item) return;
+  
+  const previousStatus = item.isLiked || 0; 
+
+  try {
+    // 互斥逻辑：如果当前已经是“差评”(2)，先取消差评
+    if (previousStatus === 2) {
+      const dislikeRes = await dislikeAttraction(item.id);
+      if (dislikeRes.code === 1) {
+         item.disliked = Math.max(0, (item.disliked || 0) - 1);
+      }
+    }
+
+    // 执行点赞
+    const res = await likeAttraction(item.id);
+    
+    if (res.code === 1) { 
+      if (previousStatus === 1) {
+        // 原本是赞，再次点击 -> 取消赞
+        item.isLiked = 0;
+        item.liked = Math.max(0, (item.liked || 0) - 1);
+      } else {
+        // 原本是无或踩 -> 变为赞
+        item.isLiked = 1;
+        item.liked = (item.liked || 0) + 1;
+      }
+    } 
+  } catch (err) {
+    console.error("点赞操作失败", err);
+  }
+}
+
+// 处理差评
+const handleDislike = async (item) => {
+  if (!item) return;
+  
+  const previousStatus = item.isLiked || 0;
+
+  try {
+    // 互斥逻辑：如果当前已经是“点赞”(1)，先取消点赞
+    if (previousStatus === 1) {
+      const likeRes = await likeAttraction(item.id);
+      if (likeRes.code === 1) {
+        item.liked = Math.max(0, (item.liked || 0) - 1);
+      }
+    }
+
+    // 执行差评
+    const res = await dislikeAttraction(item.id);
+    
+    if (res.code === 1) {
+      if (previousStatus === 2) {
+        // 原本是踩，再次点击 -> 取消踩
+        item.isLiked = 0;
+        item.disliked = Math.max(0, (item.disliked || 0) - 1);
+      } else {
+        // 原本是无或赞 -> 变为踩
+        item.isLiked = 2;
+        item.disliked = (item.disliked || 0) + 1;
+      }
+    }
+  } catch (err) {
+    console.error("差评操作失败", err);
   }
 }
 
@@ -172,36 +270,30 @@ const formatDate = (dateString) => {
 
 // 图片错误处理
 const handleImgError = (e) => {
-  // 如果没有默认图，可以只设置背景色
   e.target.style.backgroundColor = '#eee' 
   e.target.style.objectFit = 'contain'
-  // e.target.src = require('@/assets/images/default-scenery.png') // 如果有默认图请解开
 }
 
-// --- 交互逻辑 ---
+// --- 翻页与弹窗逻辑 ---
 
-// 翻页
 const changePage = (page) => {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-// 打开弹窗
 const openModal = (item) => {
   selectedItem.value = item
   showModal.value = true
-  document.body.style.overflow = 'hidden' // 禁止背景滚动
+  document.body.style.overflow = 'hidden' 
 }
 
-// 关闭弹窗
 const closeModal = () => {
   showModal.value = false
   selectedItem.value = null
-  document.body.style.overflow = '' // 恢复背景滚动
+  document.body.style.overflow = '' 
 }
 
-// 弹窗内切换
 const navigateDetail = (direction) => {
   const newIndex = currentDetailIndex.value + direction
   if (newIndex >= 0 && newIndex < attractionList.value.length) {
@@ -233,9 +325,7 @@ onMounted(() => {
   font-family: 'Segoe UI', sans-serif;
 }
 
-/* =========================================
-   1. 头部样式 (严格保留原版)
-   ========================================= */
+/* 头部样式 */
 .attraction-header {
   background: linear-gradient(rgba(26, 94, 56, 0.9), rgba(26, 94, 56, 0.85)),
               url('https://picsum.photos/id/152/1920/500') center/cover no-repeat;
@@ -271,16 +361,12 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* =========================================
-   2. 主体内容样式 (Grid 布局)
-   ========================================= */
+/* 主体内容样式 */
 .content-wrapper {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
 }
-
-/* 状态提示区 */
 .state-box {
   text-align: center;
   padding: 80px 20px;
@@ -309,15 +395,13 @@ onMounted(() => {
   margin-top: 15px;
 }
 
-/* --- Grid 网格布局 --- */
+/* Grid 网格布局 */
 .grid-container {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 强制3列 */
+  grid-template-columns: repeat(3, 1fr);
   gap: 35px;
   margin-bottom: 40px;
 }
-
-/* 卡片样式 */
 .grid-item {
   background: #fff;
   border-radius: 12px;
@@ -333,8 +417,6 @@ onMounted(() => {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px rgba(0,0,0,0.15);
 }
-
-/* 图片区 */
 .image-wrapper {
   height: 240px;
   overflow: hidden;
@@ -350,8 +432,6 @@ onMounted(() => {
 .grid-item:hover img {
   transform: scale(1.08);
 }
-
-/* 标题区 */
 .name-bar {
   padding: 20px;
   text-align: center;
@@ -367,7 +447,7 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-/* --- 分页条 --- */
+/* 分页条 */
 .pagination-bar {
   display: flex;
   justify-content: center;
@@ -395,9 +475,7 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* =========================================
-   3. 详情弹窗样式
-   ========================================= */
+/* 详情弹窗样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -411,7 +489,6 @@ onMounted(() => {
   justify-content: center;
   padding: 20px;
 }
-
 .modal-content {
   background: #fff;
   width: 900px;
@@ -424,8 +501,6 @@ onMounted(() => {
   box-shadow: 0 25px 50px rgba(0,0,0,0.3);
   overflow: hidden;
 }
-
-/* 关闭按钮 */
 .close-btn {
   position: absolute;
   top: 15px;
@@ -440,7 +515,6 @@ onMounted(() => {
 }
 .close-btn:hover { color: #333; }
 
-/* 左右导航按钮 */
 .nav-btn {
   background: rgba(255,255,255,0.9);
   border: none;
@@ -469,7 +543,7 @@ onMounted(() => {
 .prev-btn { left: 20px; }
 .next-btn { right: 20px; }
 
-/* 详情内容布局 */
+/* 详情布局 */
 .detail-body {
   display: flex;
   width: 100%;
@@ -497,8 +571,6 @@ onMounted(() => {
   color: var(--text-dark);
   line-height: 1.3;
 }
-
-/* 详情页元数据 (评分/位置) */
 .detail-meta {
   display: flex;
   flex-wrap: wrap;
@@ -529,7 +601,6 @@ onMounted(() => {
   padding-bottom: 15px;
   border-bottom: 1px solid #eee;
 }
-
 .detail-desc {
   line-height: 1.8;
   color: #444;
@@ -537,7 +608,61 @@ onMounted(() => {
   white-space: pre-wrap;
 }
 
-/* 响应式适配 */
+/* --- 新增：操作栏样式 --- */
+.action-bar {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  background-color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-medium);
+  font-size: 1rem;
+}
+
+.action-btn svg {
+  transition: transform 0.2s;
+}
+
+.action-btn:hover {
+  background-color: #f5f5f5;
+  transform: translateY(-2px);
+}
+
+/* 点赞激活 - 绿色 */
+.action-btn.like-btn.active {
+  background-color: #e8f4ea; 
+  border-color: #1a5e38;
+  color: #1a5e38;
+}
+.action-btn.like-btn.active svg {
+  fill: #1a5e38; 
+  transform: scale(1.1) rotate(-10deg);
+}
+
+/* 差评激活 - 红色/橙色 */
+.action-btn.dislike-btn.active {
+  background-color: #fff1f0;
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+.action-btn.dislike-btn.active svg {
+  fill: #ff4d4f;
+  transform: scale(1.1) rotate(10deg);
+}
+
+/* 响应式 */
 @media (max-width: 1024px) {
   .grid-container { grid-template-columns: repeat(2, 1fr); }
   .modal-content { flex-direction: column; overflow-y: auto; }
@@ -547,12 +672,10 @@ onMounted(() => {
   .prev-btn { left: 10px; top: 150px; }
   .next-btn { right: 10px; top: 150px; }
 }
-
 @media (max-width: 600px) {
   .grid-container { grid-template-columns: 1fr; }
   .attraction-header h1 { font-size: 2rem; }
 }
-
 @keyframes modalFadeIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
