@@ -59,7 +59,7 @@ const formatLocation = (loc) => {
 }
 
 const handleImgError = (e) => {
-  e.target.src = '/images/quzhou.jpg' // 确保你 public/images 下有这个默认图
+  e.target.src = '/images/quzhou.jpg' // 默认图
 }
 
 const initMap = () => {
@@ -81,21 +81,50 @@ const initMap = () => {
   }
 }
 
+// ✨ 核心修改：分流处理数据，避免并发爆炸
 const loadData = async () => {
   loading.value = true
   try {
     const res = await getAttraction()
     if (res.code === 1 && res.data) {
       attractionList.value = res.data
+      
+      const hasCoords = []
+      const noCoords = []
+
+      // 1. 数据分类
       attractionList.value.forEach(item => {
-        addCreativeMarker(item)
+        if (item.longitude && item.latitude) {
+          hasCoords.push(item)
+        } else {
+          noCoords.push(item)
+        }
       })
+
+      // 2. 有坐标的：直接秒开 (这些不会消耗百度API配额)
+      hasCoords.forEach(item => addCreativeMarker(item))
+
+      // 3. 无坐标的：排队慢速处理，避免触发并发限制
+      if (noCoords.length > 0) {
+        console.warn(`有 ${noCoords.length} 个景点缺少坐标，正在慢速解析...`)
+        processQueueSlowly(noCoords)
+      }
     }
   } catch (err) {
     console.error(err)
     ElMessage.error('获取景点数据失败')
   } finally {
     loading.value = false
+  }
+}
+
+// ✨ 新增：慢速队列处理函数
+const processQueueSlowly = async (list) => {
+  for (const item of list) {
+    addCreativeMarker(item)
+    // 强制等待 300 毫秒再处理下一个
+    // 这样 1 秒钟最多请求 3 次，绝对安全，不会被封
+    await new Promise(resolve => setTimeout(resolve, 300))
   }
 }
 
@@ -118,7 +147,6 @@ const createMarkerLogic = (point, item) => {
   mapInstance.addOverlay(marker)
   markers.push({ id: item.id, marker, point })
 
-  // ✨ 修复：弹窗里的评分也展示真实数据
   const scoreDisplay = item.score ? Number(item.score).toFixed(1) : '暂无';
 
   const infoHtml = `
@@ -171,9 +199,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ✨ 修复：使用 fixed 定位强行撑满屏幕，解决留白问题 
-   同时 z-index 设为 1，确保在导航栏(z-index: 2000)下方
-*/
+/* 容器占满视口 */
 .explorer-map-container {
   position: fixed; 
   top: 0; 
@@ -191,18 +217,14 @@ onMounted(() => {
   height: 100%;
 }
 
-/* ✨ 修复：侧边栏位置调整
-   top: 80px 确保避开顶部的导航栏 (导航栏高度约 70px)
-   max-height 计算减去顶部空隙和底部空隙
-*/
+/* 侧边栏样式 */
 .side-panel {
   position: absolute;
   top: 85px; 
   left: 20px;
   width: 320px;
-  /* 动态计算高度：总高 - 顶部避让 - 底部留白 */
   max-height: calc(100vh - 110px); 
-  background: rgba(255, 255, 255, 0.9); /*稍微不透明一点，防止和地图混杂*/
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(12px);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -221,7 +243,7 @@ onMounted(() => {
 .toggle-handle {
   position: absolute;
   right: -30px; 
-  top: 15px; /* 稍微靠上一点 */
+  top: 15px;
   width: 30px;
   height: 50px;
   background: rgba(255, 255, 255, 0.95);
@@ -248,7 +270,7 @@ onMounted(() => {
 .panel-header {
   padding: 15px 20px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
-  flex-shrink: 0; /* 防止头部被压缩 */
+  flex-shrink: 0;
 }
 
 .panel-header h3 {
@@ -346,7 +368,6 @@ onMounted(() => {
   color: #1a5e38;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .side-panel {
     top: auto;
