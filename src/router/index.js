@@ -8,6 +8,7 @@ import SpecialtiesView from '@/views/specialties/index.vue'
 import LayoutView from '@/views/layout/index.vue' 
 import AttractiontView from '@/views/attraction/index.vue'
 import LoginView from '@/views/login/index.vue' 
+import MapView from '@/views/map/index.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -40,7 +41,8 @@ const router = createRouter({
         },
         { path: '/culture', name: 'culture', component: CultureView },
         { path: '/specialties', name: 'specialties', component: SpecialtiesView },
-        { path: '/attraction', name: 'attraction', component: AttractiontView }
+        { path: '/attraction', name: 'attraction', component: AttractiontView },
+        { path: '/map', name: 'map', component: MapView }
       ]
     }
   ]

@@ -175,7 +175,8 @@ const menuItems = [
   { path: '/index', label: '首页' },
   { path: '/culture', label: '文化' },
   { path: '/specialties', label: '特产' },
-  { path: '/attraction', label: '景区' }
+  { path: '/attraction', label: '景区' },
+  { path: '/map', label: '导览' }
 ];
 
 const handleMenuClick = (path) => { router.push(path); };
@@ -199,27 +200,21 @@ const quzhouIntroduction = {
     
     <el-header class="floating-nav" :class="{ 'scrolled': isScrolled }">
       <div class="nav-outer-container">
-        
         <div class="nav-content">
-          
           <el-menu mode="horizontal" class="nav-menu" active-text-color="#ffffff" background-color="transparent"
             text-color="#e0e0e0" :default-active="currentPath" :ellipsis="false">
-            
             <el-menu-item v-for="(item, i) in menuItems" :key="i" @click="handleMenuClick(item.path)"
               class="nav-menu-item main-nav-item">
               <span class="nav-text">{{ item.label }}</span>
               <div class="nav-indicator"></div>
             </el-menu-item>
-
           </el-menu>
 
           <div class="login-corner">
-            
             <div v-if="!isLogin" class="login-capsule" @click="goToLogin">
               <el-icon class="login-icon"><User /></el-icon>
               <span class="login-label">登录</span>
             </div>
-
             <el-dropdown v-else trigger="click">
               <div class="user-dropdown-link">
                 <el-avatar :size="32" class="nav-avatar">
@@ -230,15 +225,12 @@ const quzhouIntroduction = {
               <template #dropdown>
                 <el-dropdown-menu class="custom-dropdown">
                   <div class="dropdown-header">你好，{{ userInfo.username }}</div>
-                  
                   <el-dropdown-item @click="router.push('/user')">
                     <el-icon><UserFilled /></el-icon>个人中心
                   </el-dropdown-item>
-                  
                   <el-dropdown-item @click="openPassDialog">
                     <el-icon><Lock /></el-icon>修改密码
                   </el-dropdown-item>
-                  
                   <el-dropdown-item divided @click="handleLogout" style="color: #f56c6c;">
                     <el-icon><SwitchButton /></el-icon>退出登录
                   </el-dropdown-item>
@@ -246,15 +238,16 @@ const quzhouIntroduction = {
               </template>
             </el-dropdown>
           </div>
-
         </div>
       </div>
     </el-header>
 
-    <el-main :class="{ 'home-content': currentPath === '/index', 'other-content': currentPath !== '/index' }">
+    <el-main :class="['main-content', 
+      (currentPath === '/index' || currentPath === '/map') ? 'full-width-content' : 'other-content'
+    ]">
       
       <template v-if="currentPath === '/index'">
-        <div class="carousel-container">
+         <div class="carousel-container">
           <el-carousel :height="screenWidth >= 1200 ? '750px' : '500px'"
             autoplay interval="6000" indicator-position="none" class="carousel" arrow="hover">
             <el-carousel-item v-for="(item, i) in carouselImages" :key="i">
@@ -310,7 +303,7 @@ const quzhouIntroduction = {
     </el-main>
 
     <el-dialog v-model="passDialogVisible" title="修改密码" width="450px" :close-on-click-modal="false" center destroy-on-close class="custom-dialog">
-      <el-form ref="passFormRef" :model="passForm" :rules="passRules" label-width="85px" style="padding-right: 20px; padding-top: 10px;">
+       <el-form ref="passFormRef" :model="passForm" :rules="passRules" label-width="85px" style="padding-right: 20px; padding-top: 10px;">
         <el-form-item label="旧密码" prop="oldPassword">
           <el-input v-model="passForm.oldPassword" type="password" show-password placeholder="请输入当前使用的密码" />
         </el-form-item>
@@ -336,7 +329,7 @@ const quzhouIntroduction = {
 /* 全局基础样式 */
 .layout-container { min-height: 100vh; background-color: #f9fbf8; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif; margin: 0; padding: 0; }
 
-/* ------------------ 导航栏核心样式 ------------------ */
+/* ------------------ 导航栏核心样式 (保持不变) ------------------ */
 .floating-nav { 
   position: fixed !important; top: 0; left: 0; right: 0; 
   z-index: 2000 !important; padding: 0 !important; margin: 0; 
@@ -396,7 +389,7 @@ const quzhouIntroduction = {
 .main-nav-item.is-active .nav-indicator,
 .main-nav-item:hover .nav-indicator { width: 28px; opacity: 1; }
 
-/* ------------------ 右侧登录角落 ------------------ */
+/* 右侧登录角落 */
 .login-corner {
   position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 2001;
 }
@@ -426,11 +419,25 @@ const quzhouIntroduction = {
 .dropdown-icon { color: white; margin-left: 6px; font-size: 12px; opacity: 0.8; }
 .dropdown-header { padding: 8px 16px; font-size: 12px; color: #999; border-bottom: 1px solid #eee; margin-bottom: 5px; }
 
-/* ------------------ 主内容区域 ------------------ */
+/* ------------------ ⭐ 主内容区域修改 ⭐ ------------------ */
 .main-content { padding: 0; margin: 0; }
-.home-content { padding-top: 0; }
-.other-content { width: 100%; max-width: 1200px; margin: 0 auto; padding: 100px 20px 40px; min-height: 80vh; }
 
+/* 全屏模式 (首页 + 地图) */
+.full-width-content { 
+  width: 100%; 
+  padding-top: 0; 
+}
+
+/* 普通内页 (限制宽度) */
+.other-content { 
+  width: 100%; 
+  max-width: 1200px; 
+  margin: 0 auto; 
+  padding: 100px 20px 40px; 
+  min-height: 80vh; 
+}
+
+/* ... (首页轮播和介绍样式的代码保持不变) ... */
 .carousel-container { position: relative; width: 100%; margin-top: 0 !important; }
 .carousel { width: 100%; }
 .carousel-img { width: 100%; height: 100%; object-fit: cover; transition: transform 8s ease; }
@@ -447,14 +454,12 @@ const quzhouIntroduction = {
 .hero-text h1 { font-size: 3.5rem; margin-bottom: 10px; font-weight: 700; letter-spacing: 6px; font-family: "KaiTi", serif; }
 .hero-text p { font-size: 1.2rem; font-weight: 300; letter-spacing: 3px; opacity: 0.9; text-transform: uppercase; }
 
-/* 介绍区域 */
 .introduction-section { background-color: #ffffff; padding: 80px 20px 100px; position: relative; z-index: 5; margin-top: -1px; }
 .introduction-wrapper { width: 100%; max-width: 1200px; margin: 0 auto; }
 .intro-header { text-align: center; margin-bottom: 60px; }
 .intro-title { font-size: 2.4rem; color: #1a5e38; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; }
 .intro-subtitle { font-size: 1.1rem; color: #666; font-weight: 300; letter-spacing: 1px; }
 
-/* 卡片美化 */
 .intro-text-card {
   border: none !important;
   background: linear-gradient(135deg, #ffffff 0%, #f4fcf6 100%);
@@ -478,13 +483,11 @@ const quzhouIntroduction = {
 .highlight-item-title { font-weight: 600; color: #333; font-size: 1rem; display: block; margin-bottom: 4px; }
 .highlight-item-desc { font-size: 0.9rem; color: #666; line-height: 1.5; }
 
-/* 修复标签遮挡 */
 .intro-content-row { margin-bottom: 60px; width: 100%; max-width: 1400px; margin-left: auto; margin-right: auto; position: relative; z-index: 2; }
 .features-container { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 40px; width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; padding: 20px 10px; position: relative; z-index: 10; clear: both; }
 .feature-item { background-color: #ffffff; color: #5c7a63; border: 1px solid #e0e9e3; padding: 10px 24px; border-radius: 50px; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.5px; cursor: default; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); }
 .feature-item:hover { background-color: #1a5e38; color: #ffffff; border-color: #1a5e38; transform: translateY(-3px); box-shadow: 0 8px 15px rgba(26, 94, 56, 0.25); }
 
-/* 弹窗样式调整 */
 :deep(.custom-dialog) { border-radius: 12px; overflow: hidden; }
 :deep(.el-button--primary) { background-color: #1a5e38; border-color: #1a5e38; }
 :deep(.el-button--primary:hover) { background-color: #2a7d4a; border-color: #2a7d4a; }

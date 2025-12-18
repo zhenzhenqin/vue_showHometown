@@ -14,3 +14,14 @@ export const likeAttraction = (id) => {
 export const dislikeAttraction = (id) => {
   return request.get(`attractions/dislikes/${id}`);
 }
+
+// 分页查询景区列表
+export const listAllAttractions = (name, location, score, page, pageSize) => {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (location) params.append('location', location);
+  if (score !== null && score !== undefined) params.append('score', score);
+  params.append('page', page);
+  params.append('pageSize', pageSize);
+  return request.get(`/attractions?${params.toString()}`);
+};
