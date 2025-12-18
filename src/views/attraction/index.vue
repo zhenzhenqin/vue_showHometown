@@ -65,7 +65,7 @@
           class="nav-btn prev-btn" 
           @click="navigateDetail(-1)"
           :disabled="currentDetailIndex === 0"
-        >❮</button>
+        >❯</button>
 
         <div class="detail-body" v-if="selectedItem">
           <div class="detail-image">
@@ -129,8 +129,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-// 确保引用路径正确
+import { useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus' 
 import { getAttraction, likeAttraction, dislikeAttraction } from '@/api/attraction'
+
+const router = useRouter() 
 
 // 数据状态
 const attractionList = ref([])
@@ -162,7 +165,33 @@ const currentDetailIndex = computed(() => {
   return attractionList.value.findIndex(item => item.id === selectedItem.value.id)
 })
 
-// --- 方法 ---
+
+// 📌 核心逻辑：检查是否登录
+const checkLogin = () => {
+  const token = localStorage.getItem('token')
+  console.log('token:', token)
+  if (!token) {
+    // 弹出确认框
+    ElMessageBox.confirm(
+      '该操作需要登录后才能进行，是否前往登录页面？',
+      '提示',
+      {
+        confirmButtonText: '去登录',
+        cancelButtonText: '暂不',
+        type: 'warning',
+      }
+    )
+      .then(() => {
+        // 用户点击“去登录”
+        router.push('/login')
+      })
+      .catch(() => {
+        // 用户点击“暂不”
+      })
+    return false // 返回 false 表示未登录
+  }
+  return true // 返回 true 表示已登录
+}
 
 // 获取数据
 const fetchAttractions = async () => {
@@ -170,10 +199,8 @@ const fetchAttractions = async () => {
     loading.value = true
     error.value = null
     const response = await getAttraction()
-    // 假设接口返回结构: { code: 1, data: [ ... ] }
     if (response.code === 1 && Array.isArray(response.data)) {
       attractionList.value = response.data
-      // 初始化点赞状态字段，防止 undefined
       attractionList.value.forEach(item => {
           if (item.isLiked === undefined) item.isLiked = 0;
           if (item.liked === undefined) item.liked = 0;
@@ -190,16 +217,14 @@ const fetchAttractions = async () => {
   }
 }
 
-// --- 核心：点赞/差评 交互逻辑 ---
-
-// 处理点赞 (isLiked: 0=无, 1=赞, 2=踩)
+// 处理点赞
 const handleLike = async (item) => {
   if (!item) return;
-  
+  if (!checkLogin()) return; // 🔒 1. 检查登录状态
+
   const previousStatus = item.isLiked || 0; 
 
   try {
-    // 互斥逻辑：如果当前已经是“差评”(2)，先取消差评
     if (previousStatus === 2) {
       const dislikeRes = await dislikeAttraction(item.id);
       if (dislikeRes.code === 1) {
@@ -207,16 +232,13 @@ const handleLike = async (item) => {
       }
     }
 
-    // 执行点赞
     const res = await likeAttraction(item.id);
     
     if (res.code === 1) { 
       if (previousStatus === 1) {
-        // 原本是赞，再次点击 -> 取消赞
         item.isLiked = 0;
         item.liked = Math.max(0, (item.liked || 0) - 1);
       } else {
-        // 原本是无或踩 -> 变为赞
         item.isLiked = 1;
         item.liked = (item.liked || 0) + 1;
       }
@@ -229,11 +251,11 @@ const handleLike = async (item) => {
 // 处理差评
 const handleDislike = async (item) => {
   if (!item) return;
+  if (!checkLogin()) return; // 🔒 1. 检查登录状态
   
   const previousStatus = item.isLiked || 0;
 
   try {
-    // 互斥逻辑：如果当前已经是“点赞”(1)，先取消点赞
     if (previousStatus === 1) {
       const likeRes = await likeAttraction(item.id);
       if (likeRes.code === 1) {
@@ -241,16 +263,13 @@ const handleDislike = async (item) => {
       }
     }
 
-    // 执行差评
     const res = await dislikeAttraction(item.id);
     
     if (res.code === 1) {
       if (previousStatus === 2) {
-        // 原本是踩，再次点击 -> 取消踩
         item.isLiked = 0;
         item.disliked = Math.max(0, (item.disliked || 0) - 1);
       } else {
-        // 原本是无或赞 -> 变为踩
         item.isLiked = 2;
         item.disliked = (item.disliked || 0) + 1;
       }
@@ -260,7 +279,6 @@ const handleDislike = async (item) => {
   }
 }
 
-// 格式化日期
 const formatDate = (dateString) => {
   if (!dateString) return ''
   return new Date(dateString).toLocaleDateString('zh-CN', {
@@ -268,13 +286,10 @@ const formatDate = (dateString) => {
   })
 }
 
-// 图片错误处理
 const handleImgError = (e) => {
   e.target.style.backgroundColor = '#eee' 
   e.target.style.objectFit = 'contain'
 }
-
-// --- 翻页与弹窗逻辑 ---
 
 const changePage = (page) => {
   if (page < 1 || page > totalPages.value) return
@@ -308,7 +323,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 基础变量 */
+/* 保持你原有的样式不变 */
 :root {
   --primary-color: #1a5e38;
   --secondary-color: #e8f4ea;
@@ -325,7 +340,6 @@ onMounted(() => {
   font-family: 'Segoe UI', sans-serif;
 }
 
-/* 头部样式 */
 .attraction-header {
   background: linear-gradient(rgba(26, 94, 56, 0.9), rgba(26, 94, 56, 0.85)),
               url('https://picsum.photos/id/152/1920/500') center/cover no-repeat;
@@ -361,7 +375,6 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* 主体内容样式 */
 .content-wrapper {
   max-width: 1200px;
   margin: 0 auto;
@@ -395,7 +408,6 @@ onMounted(() => {
   margin-top: 15px;
 }
 
-/* Grid 网格布局 */
 .grid-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -447,7 +459,6 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-/* 分页条 */
 .pagination-bar {
   display: flex;
   justify-content: center;
@@ -475,7 +486,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* 详情弹窗样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -543,7 +553,6 @@ onMounted(() => {
 .prev-btn { left: 20px; }
 .next-btn { right: 20px; }
 
-/* 详情布局 */
 .detail-body {
   display: flex;
   width: 100%;
@@ -608,7 +617,6 @@ onMounted(() => {
   white-space: pre-wrap;
 }
 
-/* --- 新增：操作栏样式 --- */
 .action-bar {
   display: flex;
   gap: 15px;
@@ -640,7 +648,6 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
-/* 点赞激活 - 绿色 */
 .action-btn.like-btn.active {
   background-color: #e8f4ea; 
   border-color: #1a5e38;
@@ -651,7 +658,6 @@ onMounted(() => {
   transform: scale(1.1) rotate(-10deg);
 }
 
-/* 差评激活 - 红色/橙色 */
 .action-btn.dislike-btn.active {
   background-color: #fff1f0;
   border-color: #ff4d4f;
@@ -662,7 +668,6 @@ onMounted(() => {
   transform: scale(1.1) rotate(10deg);
 }
 
-/* 响应式 */
 @media (max-width: 1024px) {
   .grid-container { grid-template-columns: repeat(2, 1fr); }
   .modal-content { flex-direction: column; overflow-y: auto; }
