@@ -7,7 +7,7 @@ export const getUser = () => {
 
 //更新用户信息
 export const updateUser = (user) => {
-  return request.put('/user', user)
+  return request.put('/user/update', user)
 }
 
 //根据用户id查询用户信息
