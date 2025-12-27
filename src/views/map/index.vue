@@ -56,9 +56,9 @@ let mapInstance = null
 let markers = [] 
 let myLocationMarker = null 
 let myLocationPoint = null  
-let drivingRoute = null // 用于存储路线规划实例
+let drivingRoute = null 
 
-// WGS84 转 BD09
+// WGS84 转 BD09 (用于GPS坐标转换)
 const wgs84ToBd09 = (lng, lat) => {
   const x_pi = 3.14159265358979324 * 3000.0 / 180.0;
   const z = Math.sqrt(lng * lng + lat * lat) + 0.00002 * Math.sin(lat * x_pi);
@@ -91,91 +91,128 @@ const initMap = () => {
     mapInstance = new BMapGL.Map('tour-map')
     const centerPoint = new BMapGL.Point(118.87263, 28.941708)
     mapInstance.centerAndZoom(centerPoint, 11) 
-    mapInstance.enableScrollWheelZoom(true)    
-    mapInstance.setTilt(40)                    
+    mapInstance.enableScrollWheelZoom(true)     
+    mapInstance.setTilt(40)                     
 
-    locateUser()
+    locateUser() // 启动定位流程
 
   } catch (e) {
     console.error("地图初始化失败", e)
   }
 }
 
-//获取用户位置并标记
+// 🔥 核心修改：优化的定位逻辑 (含降级处理)
 const locateUser = () => {
+  // 定义定位成功后的通用处理逻辑
+  const handleSuccess = (point, type) => {
+    // 移除旧标记
+    if (myLocationMarker) mapInstance.removeOverlay(myLocationMarker);
+    
+    myLocationPoint = point;
+
+    // 自定义定位图标 HTML
+    const myIconHtml = `
+      <div class="my-location-marker">
+        <div class="pulse-ring"></div>
+        <div class="center-point"></div>
+      </div>
+    `;
+
+    // 创建自定义覆盖物类 (闭包内定义以确保访问)
+    function MyLocationOverlay(point) { this._point = point; }
+    MyLocationOverlay.prototype = new BMapGL.Overlay();
+    MyLocationOverlay.prototype.initialize = function(map) {
+      this._map = map;
+      var div = this._div = document.createElement("div");
+      div.style.position = "absolute";
+      div.style.zIndex = BMapGL.Overlay.getZIndex(this._point.lat);
+      div.innerHTML = myIconHtml;
+      map.getPanes().markerPane.appendChild(div);
+      return div;
+    }
+    MyLocationOverlay.prototype.draw = function() {
+      var map = this._map;
+      var pixel = map.pointToOverlayPixel(this._point);
+      this._div.style.left = pixel.x - 20 + "px";
+      this._div.style.top  = pixel.y - 20 + "px";
+    }
+
+    try {
+      myLocationMarker = new MyLocationOverlay(point);
+      mapInstance.addOverlay(myLocationMarker);
+      
+      // 只有第一次或者用户主动点击时才飞过去，避免初始化太乱
+      mapInstance.flyTo(point, 14); 
+      
+      if(type === 'gps') {
+        console.log("GPS精准定位成功");
+      } else {
+        ElMessage.warning({
+          message: "当前网络环境不支持GPS，已自动切换至城市定位",
+          duration: 4000
+        });
+      }
+    } catch(e) {
+      // 极端兜底：如果自定义Overlay失败，用普通Marker
+      myLocationMarker = new BMapGL.Marker(point);
+      mapInstance.addOverlay(myLocationMarker);
+    }
+  };
+
+  // 1. 尝试浏览器原生 GPS 定位 (仅 HTTPS/Localhost 有效)
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const rawLng = position.coords.longitude;
         const rawLat = position.coords.latitude;
         const bdPoint = wgs84ToBd09(rawLng, rawLat);
-        myLocationPoint = new BMapGL.Point(bdPoint.lng, bdPoint.lat);
-
-        if (myLocationMarker) {
-          mapInstance.removeOverlay(myLocationMarker);
-        }
-        
-        //  核心修改：使用自定义 HTML 图标创建定位点
-        const myIconHtml = `
-          <div class="my-location-marker">
-            <div class="pulse-ring"></div>
-            <div class="center-point"></div>
-          </div>
-        `;
-        
-        // 创建自定义覆盖物
-        function MyLocationOverlay(point) {
-            this._point = point;
-        }
-        MyLocationOverlay.prototype = new BMapGL.Overlay();
-        MyLocationOverlay.prototype.initialize = function(map) {
-            this._map = map;
-            var div = this._div = document.createElement("div");
-            div.style.position = "absolute";
-            div.style.zIndex = BMapGL.Overlay.getZIndex(this._point.lat);
-            div.innerHTML = myIconHtml;
-            map.getPanes().markerPane.appendChild(div);
-            return div;
-        }
-        MyLocationOverlay.prototype.draw = function() {
-            var map = this._map;
-            var pixel = map.pointToOverlayPixel(this._point);
-            // 调整偏移量，使图标中心对准坐标点
-            this._div.style.left = pixel.x - 20 + "px";
-            this._div.style.top  = pixel.y - 20 + "px";
-        }
-
-        myLocationMarker = new MyLocationOverlay(myLocationPoint);
-        mapInstance.addOverlay(myLocationMarker);
-        
-        console.log("定位成功:", bdPoint);
+        handleSuccess(new BMapGL.Point(bdPoint.lng, bdPoint.lat), 'gps');
       },
-      (error) => { console.warn("定位失败:", error.message); },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      (error) => {
+        console.warn("GPS定位受阻，尝试降级方案:", error.message);
+        // 失败原因可能是 HTTP 协议限制，转入兜底
+        fallbackToCityLocation(handleSuccess);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
     );
+  } else {
+    fallbackToCityLocation(handleSuccess);
   }
 }
 
-//  罗盘点击
+// 2. 兜底方案：IP 城市定位 (HTTP 可用)
+const fallbackToCityLocation = (callback) => {
+  try {
+    const cityLocation = new BMapGL.LocalCity();
+    cityLocation.get((result) => {
+      const point = result.center; // 城市中心点
+      callback(point, 'city');
+    });
+  } catch (e) {
+    ElMessage.error("无法获取您的位置信息");
+  }
+}
+
+// 罗盘点击
 const flyToMyLocation = () => {
   if (myLocationPoint) {
     mapInstance.flyTo(myLocationPoint, 16);
     ElMessage.success("已回到当前位置");
   } else {
-    ElMessage.warning("正在获取位置，请稍后...");
+    ElMessage.info("正在重新定位...");
     locateUser();
   }
 }
 
-//  开始导航规划
+// 开始导航规划
 const startNavigation = (destinationPoint) => {
   if (!myLocationPoint) {
-    ElMessage.warning("无法获取您的当前位置，请确保已授予定位权限。");
-    locateUser(); // 尝试重新定位
+    ElMessage.warning("未获取到当前位置，正在尝试重新定位...");
+    locateUser(); 
     return;
   }
 
-  // 清除之前的路线规划
+  // 清除之前的路线
   if (drivingRoute) {
     drivingRoute.clearResults();
   }
@@ -186,22 +223,19 @@ const startNavigation = (destinationPoint) => {
   drivingRoute = new BMapGL.DrivingRoute(mapInstance, {
     renderOptions: { 
       map: mapInstance, 
-      autoViewport: true, // 自动调整视野以包含整个路线
-      enableDragging: true // 允许拖拽路线
+      autoViewport: true, 
+      enableDragging: true 
     },
     onSearchComplete: function(results){
       if (drivingRoute.getStatus() != BMAP_STATUS_SUCCESS){
-        ElMessage.error("路线规划失败，请稍后再试。");
+        ElMessage.error("路线规划失败 (可能是距离太远或跨海)");
       } else {
         ElMessage.success("路线规划完成！");
       }
     }
   });
 
-  // 发起规划
   drivingRoute.search(myLocationPoint, destinationPoint);
-  
-  // 关闭当前信息窗口
   mapInstance.closeInfoWindow();
 }
 
@@ -247,8 +281,7 @@ const createMarkerLogic = (point, item) => {
 
   const scoreDisplay = item.score ? Number(item.score).toFixed(1) : '暂无';
   
-  // 🔥 核心修改：在信息窗口中增加导航按钮
-  // 注意：这里使用全局函数调用，因为 BMapGL 的 InfoWindow 不支持直接绑定 Vue 方法
+  // 自定义信息窗口 HTML
   const infoHtml = `
     <div style="width: 250px; font-family: sans-serif; overflow: hidden; border-radius: 8px;">
       <div style="height: 130px; position: relative;">
@@ -293,7 +326,7 @@ const flyToSpot = (item) => {
   else if (item.longitude && item.latitude) { mapInstance.flyTo(new BMapGL.Point(item.longitude, item.latitude), 15) }
 }
 
-// 🔥 将导航方法挂载到全局，供 InfoWindow 调用
+// 挂载全局导航方法
 window.callVueNavigate = (lng, lat) => {
   const destination = new BMapGL.Point(lng, lat);
   startNavigation(destination);
@@ -314,7 +347,7 @@ onMounted(() => {
 }
 .map-view { width: 100%; height: 100%; }
 
-/* 🧭 罗盘控件 */
+/* 罗盘控件 */
 .compass-control {
   position: absolute; bottom: 40px; right: 40px; width: 56px; height: 56px;
   background: #fff; border-radius: 50%; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
@@ -378,6 +411,7 @@ onMounted(() => {
 </style>
 
 <style>
+/* 🔴 必须放在非 scoped 标签中，否则动态生成的图标样式不生效 */
 .my-location-marker {
   position: relative;
   width: 40px;
@@ -410,19 +444,13 @@ onMounted(() => {
 }
 
 @keyframes pulse-animation {
-  0% {
-    transform: scale(0.5);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 /* 优化百度地图信息窗口样式 */
 .BMap_bubble_title { display: none !important; }
 .BMap_bubble_content { padding: 0 !important; }
-.BMap_pop > img { display: none !important; } /* 隐藏默认关闭按钮，可以自己实现 */
+.BMap_pop > img { display: none !important; }
 .BMap_top, .BMap_center, .BMap_bottom { border: none !important; background: transparent !important; }
 </style>
