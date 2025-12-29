@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { v4 as uuidv4 } from 'uuid'
 
 // 创建axios实例对象
 const request = axios.create({
@@ -10,9 +11,18 @@ const request = axios.create({
 })
 
 // 请求拦截器
-request.interceptors.request.use(
+request.interceptors.request.use( 
   config => {
-    // 在发送请求之前做些什么
+    let deviceId = localStorage.getItem('x-device-id')
+
+    //未拿到id的化 生成一个新的保存
+    if (!deviceId) {
+      deviceId = uuidv4()
+      localStorage.setItem('x-device-id', deviceId)
+    }
+
+    //将设备id添加到请求头中，传入后端
+    config.headers['X-Device-Id'] = deviceId
 
     //获取当前登录用户的id
     const user = JSON.parse(localStorage.getItem('userInfo'))
