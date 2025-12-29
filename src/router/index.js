@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import request from '@/utils/request'
 
 // 导入所有组件
 import HomeView from '@/views/index/index.vue'
@@ -46,6 +47,17 @@ const router = createRouter({
       ]
     }
   ]
+})
+
+
+// 作用：每次路由跳转结束时，默默向后端发一个请求，触发拦截器统计 PV/UV
+router.afterEach((to, from) => {
+  // 如果不是去登录页，就进行统计
+  if (to.path !== '/login') {
+    // 调用后端的心跳接口 (需要在后端 DailyVisitController 加一个 ping 接口)
+    // catch 捕获异常，防止统计失败影响页面报错
+    request.get('/dailyVisit/ping').catch(() => {})
+  }
 })
 
 export default router
