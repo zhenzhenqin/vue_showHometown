@@ -10,6 +10,8 @@ import LayoutView from '@/views/layout/index.vue'
 import AttractiontView from '@/views/attraction/index.vue'
 import LoginView from '@/views/login/index.vue' 
 import MapView from '@/views/map/index.vue'
+import ArticleView from '@/views/article/ArticleList.vue'
+import ArticleDetailView from  '@/views/article/ArticleDetail.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,7 +45,19 @@ const router = createRouter({
         { path: '/culture', name: 'culture', component: CultureView },
         { path: '/specialties', name: 'specialties', component: SpecialtiesView },
         { path: '/attraction', name: 'attraction', component: AttractiontView },
-        { path: '/map', name: 'map', component: MapView }
+        { path: '/map', name: 'map', component: MapView },
+        { 
+          path: '/article', 
+          name: 'article', 
+          component: ArticleView,
+          meta: { title: '记忆碎片' } 
+        },
+        { 
+          path: '/article/:id', 
+          name: 'articleDetail', 
+          component: ArticleDetailView,
+          meta: { title: '阅读详情' }
+        }
       ]
     }
   ]
