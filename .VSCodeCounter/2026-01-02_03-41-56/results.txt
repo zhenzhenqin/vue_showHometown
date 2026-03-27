@@ -1,0 +1,82 @@
+Date : 2026-01-02 03:41:56
+Directory : d:\Code\Hometown\showhometown
+Total : 33 files,  6907 codes, 58 comments, 517 blanks, all 7482 lines
+
+Languages
++------------+------------+------------+------------+------------+------------+
+| language   | files      | code       | comment    | blank      | total      |
++------------+------------+------------+------------+------------+------------+
+| Vue        |         19 |      3,847 |          3 |        451 |      4,301 |
+| JSON       |          2 |      2,764 |          0 |          2 |      2,766 |
+| JavaScript |          8 |        218 |         55 |         41 |        314 |
+| Markdown   |          1 |         62 |          0 |         22 |         84 |
+| HTML       |          1 |         14 |          0 |          1 |         15 |
+| XML        |          2 |          2 |          0 |          0 |          2 |
++------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                     | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                        |         33 |      6,907 |         58 |        517 |      7,482 |
+| . (Files)                                                                |          5 |      2,861 |          2 |         26 |      2,889 |
+| public                                                                   |          2 |          2 |          0 |          0 |          2 |
+| src                                                                      |         26 |      4,044 |         56 |        491 |      4,591 |
+| src (Files)                                                              |          2 |         22 |          1 |         10 |         33 |
+| src\api                                                                  |          4 |         81 |         33 |         20 |        134 |
+| src\components                                                           |          8 |        233 |          1 |         36 |        270 |
+| src\components (Files)                                                   |          3 |        187 |          0 |         31 |        218 |
+| src\components\icons                                                     |          5 |         46 |          1 |          5 |         52 |
+| src\router                                                               |          1 |         64 |          8 |          5 |         77 |
+| src\utils                                                                |          1 |         38 |         11 |          9 |         58 |
+| src\views                                                                |         10 |      3,606 |          2 |        411 |      4,019 |
+| src\views\article                                                        |          2 |        548 |          1 |         89 |        638 |
+| src\views\attraction                                                     |          1 |        629 |          0 |         59 |        688 |
+| src\views\culture                                                        |          1 |        490 |          0 |         45 |        535 |
+| src\views\index                                                          |          1 |          7 |          0 |          1 |          8 |
+| src\views\layout                                                         |          1 |        399 |          0 |         43 |        442 |
+| src\views\login                                                          |          1 |        289 |          0 |         35 |        324 |
+| src\views\map                                                            |          1 |        407 |          0 |         49 |        456 |
+| src\views\specialties                                                    |          1 |        445 |          1 |         51 |        497 |
+| src\views\user                                                           |          1 |        392 |          0 |         39 |        431 |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| filename                                                                 | language   | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| d:\Code\Hometown\showhometown\README.md                                  | Markdown   |         62 |          0 |         22 |         84 |
+| d:\Code\Hometown\showhometown\index.html                                 | HTML       |         14 |          0 |          1 |         15 |
+| d:\Code\Hometown\showhometown\package-lock.json                          | JSON       |      2,739 |          0 |          1 |      2,740 |
+| d:\Code\Hometown\showhometown\package.json                               | JSON       |         25 |          0 |          1 |         26 |
+| d:\Code\Hometown\showhometown\public\favicon.svg                         | XML        |          1 |          0 |          0 |          1 |
+| d:\Code\Hometown\showhometown\public\qu.svg                              | XML        |          1 |          0 |          0 |          1 |
+| d:\Code\Hometown\showhometown\src\App.vue                                | Vue        |          8 |          0 |          4 |         12 |
+| d:\Code\Hometown\showhometown\src\api\api.js                             | JavaScript |          7 |          2 |          4 |         13 |
+| d:\Code\Hometown\showhometown\src\api\article.js                         | JavaScript |         33 |         20 |          5 |         58 |
+| d:\Code\Hometown\showhometown\src\api\attraction.js                      | JavaScript |         19 |          4 |          4 |         27 |
+| d:\Code\Hometown\showhometown\src\api\user.js                            | JavaScript |         22 |          7 |          7 |         36 |
+| d:\Code\Hometown\showhometown\src\components\HelloWorld.vue              | Vue        |         38 |          0 |          6 |         44 |
+| d:\Code\Hometown\showhometown\src\components\TheWelcome.vue              | Vue        |         74 |          0 |         13 |         87 |
+| d:\Code\Hometown\showhometown\src\components\WelcomeItem.vue             | Vue        |         75 |          0 |         12 |         87 |
+| d:\Code\Hometown\showhometown\src\components\icons\IconCommunity.vue     | Vue        |          7 |          0 |          1 |          8 |
+| d:\Code\Hometown\showhometown\src\components\icons\IconDocumentation.vue | Vue        |          7 |          0 |          1 |          8 |
+| d:\Code\Hometown\showhometown\src\components\icons\IconEcosystem.vue     | Vue        |          7 |          0 |          1 |          8 |
+| d:\Code\Hometown\showhometown\src\components\icons\IconSupport.vue       | Vue        |          7 |          0 |          1 |          8 |
+| d:\Code\Hometown\showhometown\src\components\icons\IconTooling.vue       | Vue        |         18 |          1 |          1 |         20 |
+| d:\Code\Hometown\showhometown\src\main.js                                | JavaScript |         14 |          1 |          6 |         21 |
+| d:\Code\Hometown\showhometown\src\router\index.js                        | JavaScript |         64 |          8 |          5 |         77 |
+| d:\Code\Hometown\showhometown\src\utils\request.js                       | JavaScript |         38 |         11 |          9 |         58 |
+| d:\Code\Hometown\showhometown\src\views\article\ArticleDetail.vue        | Vue        |        199 |          1 |         34 |        234 |
+| d:\Code\Hometown\showhometown\src\views\article\ArticleList.vue          | Vue        |        349 |          0 |         55 |        404 |
+| d:\Code\Hometown\showhometown\src\views\attraction\index.vue             | Vue        |        629 |          0 |         59 |        688 |
+| d:\Code\Hometown\showhometown\src\views\culture\index.vue                | Vue        |        490 |          0 |         45 |        535 |
+| d:\Code\Hometown\showhometown\src\views\index\index.vue                  | Vue        |          7 |          0 |          1 |          8 |
+| d:\Code\Hometown\showhometown\src\views\layout\index.vue                 | Vue        |        399 |          0 |         43 |        442 |
+| d:\Code\Hometown\showhometown\src\views\login\index.vue                  | Vue        |        289 |          0 |         35 |        324 |
+| d:\Code\Hometown\showhometown\src\views\map\index.vue                    | Vue        |        407 |          0 |         49 |        456 |
+| d:\Code\Hometown\showhometown\src\views\specialties\index.vue            | Vue        |        445 |          1 |         51 |        497 |
+| d:\Code\Hometown\showhometown\src\views\user\index.vue                   | Vue        |        392 |          0 |         39 |        431 |
+| d:\Code\Hometown\showhometown\vite.config.js                             | JavaScript |         21 |          2 |          1 |         24 |
+| Total                                                                    |            |      6,907 |         58 |        517 |      7,482 |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+

@@ -13,10 +13,10 @@
         
         <div class="meta-info">
           <div class="author-block">
-            <el-avatar :size="40" class="avatar">{{ (article.authorName || 'A').charAt(0) }}</el-avatar>
+            <el-avatar :size="40" class="avatar">{{ (article.adminName || 'A').charAt(0) }}</el-avatar>
             <div class="text-info">
-              <span class="author-name">{{ article.authorName || '管理员' }}</span>
-              <span class="publish-time">{{ formatTime(article.createTime) }} · 阅读 {{ article.viewCount || 0 }}</span>
+              <span class="author-name">{{ article.adminName || '管理员' }}</span>
+              <!-- <span class="publish-time">{{ formatTime(article.createTime) }} · 阅读 {{ article.viewCount || 0 }}</span> -->
             </div>
           </div>
           <div v-if="article.mood" class="mood-tag">

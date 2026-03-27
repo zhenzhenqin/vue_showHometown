@@ -12,6 +12,7 @@ import LoginView from '@/views/login/index.vue'
 import MapView from '@/views/map/index.vue'
 import ArticleView from '@/views/article/ArticleList.vue'
 import ArticleDetailView from  '@/views/article/ArticleDetail.vue'
+import AiView from '@/views/ai/index.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -46,6 +47,7 @@ const router = createRouter({
         { path: '/specialties', name: 'specialties', component: SpecialtiesView },
         { path: '/attraction', name: 'attraction', component: AttractiontView },
         { path: '/map', name: 'map', component: MapView },
+        { path: '/ai', name: 'ai', component: AiView },
         { 
           path: '/article', 
           name: 'article', 

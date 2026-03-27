@@ -43,7 +43,7 @@
               <p class="summary">{{ item.summary }}</p>
               <div class="footer">
                 <span class="author">
-                  <el-icon><User /></el-icon> {{ item.authorName || 'Admin' }}
+                  <el-icon><User /></el-icon> {{ item.adminName || 'Admin' }}
                 </span>
                 <span class="read-more">阅读全文 <el-icon><ArrowRight /></el-icon></span>
               </div>

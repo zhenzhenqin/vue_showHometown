@@ -3,8 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 // 创建axios实例对象
 const request = axios.create({
-  baseURL: '/api', // 代理前缀
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 60000, // 增加到60秒，AI接口可能较慢
   headers: {
     'Content-Type': 'application/json' // 请求头
   }

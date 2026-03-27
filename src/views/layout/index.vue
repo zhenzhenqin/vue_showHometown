@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'vue-router';
 import { onMounted, ref, watch, computed, reactive } from 'vue';
 import { userEditPassword } from '@/api/user';
+import FloatingAI from '@/components/FloatingAI.vue';
 
 const router = useRouter();
 const screenWidth = ref(window.innerWidth);
@@ -260,6 +261,8 @@ const handleFabClick = () => {
       </div>
       <div class="fab-ripple"></div>
     </div>
+
+    <FloatingAI />
 
     <el-dialog v-model="passDialogVisible" title="修改密码" width="450px" center destroy-on-close class="custom-dialog">
        <el-form ref="passFormRef" :model="passForm" :rules="passRules" label-width="85px" style="padding-right: 20px; padding-top: 10px;">
